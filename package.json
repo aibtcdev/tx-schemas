@@ -1,0 +1,101 @@
+{
+  "name": "@aibtc/tx-schemas",
+  "version": "0.1.0",
+  "description": "Shared zod schemas for AIBTC transaction states, internal relay schemas, and external x402 payment schemas.",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./core/enums": {
+      "types": "./dist/core/enums.d.ts",
+      "import": "./dist/core/enums.js"
+    },
+    "./terminal-reasons": {
+      "types": "./dist/core/terminal-reasons.d.ts",
+      "import": "./dist/core/terminal-reasons.js"
+    },
+    "./core/terminal-reasons": {
+      "types": "./dist/core/terminal-reasons.d.ts",
+      "import": "./dist/core/terminal-reasons.js"
+    },
+    "./core/primitives": {
+      "types": "./dist/core/primitives.d.ts",
+      "import": "./dist/core/primitives.js"
+    },
+    "./core/schemas": {
+      "types": "./dist/core/schemas.d.ts",
+      "import": "./dist/core/schemas.js"
+    },
+    "./rpc": {
+      "types": "./dist/rpc/index.d.ts",
+      "import": "./dist/rpc/index.js"
+    },
+    "./rpc/schemas": {
+      "types": "./dist/rpc/schemas.d.ts",
+      "import": "./dist/rpc/schemas.js"
+    },
+    "./http": {
+      "types": "./dist/http/index.d.ts",
+      "import": "./dist/http/index.js"
+    },
+    "./http/schemas": {
+      "types": "./dist/http/schemas.d.ts",
+      "import": "./dist/http/schemas.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "docs/package-schemas.md",
+    "docs/x402-approval-spec.md",
+    "docs/x402-state-machines.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build && npm run typecheck && npm test",
+    "pack:dry-run": "npm pack --dry-run"
+  },
+  "keywords": [
+    "aibtc",
+    "x402",
+    "schemas",
+    "zod",
+    "stacks",
+    "payments",
+    "rpc",
+    "http"
+  ],
+  "author": "aibtcdev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aibtcdev/tx-schemas.git"
+  },
+  "homepage": "https://github.com/aibtcdev/tx-schemas#readme",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.13",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}

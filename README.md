@@ -1,21 +1,73 @@
-# tx-schemas
+# @aibtc/tx-schemas
 
-Shared transaction schemas, state models, and response types for AIBTC services.
+Shared zod schemas for AIBTC payment state models, first-party relay RPC schemas,
+and external x402 HTTP schemas.
 
-## Initial Scope
+## Install
 
-This repo starts as the planning and alignment home for shared transaction schemas across:
+```bash
+npm install @aibtc/tx-schemas zod
+```
 
-- `x402-sponsor-relay`
-- `landing-page`
-- `agent-news`
-- `x402-api`
-- `skills`
-- `aibtc-mcp-server`
+## Package Shape
 
-The current planning docs live in `docs/` and capture:
+- `@aibtc/tx-schemas` exports the full surface
+- `@aibtc/tx-schemas/core` exports canonical payment enums, terminal reasons, and shared primitives
+- `@aibtc/tx-schemas/rpc` exports internal relay service-binding schemas
+- `@aibtc/tx-schemas/http` exports external x402 facilitator and polling schemas
 
-- the existing x402 and sponsored transaction state machines
-- the approval and reduction-first architecture plan
+## Usage
 
-The first implementation pass should focus on shared types and schemas before adding runtime helpers.
+```ts
+import { PaymentStateSchema, PaymentStateCategoryByState } from "@aibtc/tx-schemas/core";
+import { RpcSubmitPaymentResultSchema } from "@aibtc/tx-schemas/rpc";
+import { HttpSettleRequestSchema } from "@aibtc/tx-schemas/http";
+import { TERMINAL_REASONS } from "@aibtc/tx-schemas/terminal-reasons";
+
+const state = PaymentStateSchema.parse("confirmed");
+const category = PaymentStateCategoryByState[state];
+const terminalReasons = TERMINAL_REASONS;
+
+const rpcResult = RpcSubmitPaymentResultSchema.parse({
+  accepted: true,
+  paymentId: "pay_01J7QZXK5XRGBVMK3N9RTNF4WW",
+  status: "queued",
+});
+
+const settleRequest = HttpSettleRequestSchema.parse({
+  paymentPayload: {
+    x402Version: 2,
+    payload: { transaction: "0x1234" },
+  },
+  paymentRequirements: {
+    scheme: "exact",
+    network: "stacks:2147483648",
+    amount: "1000000",
+    asset: "STX",
+    payTo: "ST000000000000000000002AMW42H",
+  },
+});
+```
+
+## Subpath Imports
+
+- `@aibtc/tx-schemas`
+- `@aibtc/tx-schemas/core`
+- `@aibtc/tx-schemas/core/enums`
+- `@aibtc/tx-schemas/core/schemas`
+- `@aibtc/tx-schemas/core/primitives`
+- `@aibtc/tx-schemas/terminal-reasons`
+- `@aibtc/tx-schemas/core/terminal-reasons`
+- `@aibtc/tx-schemas/rpc`
+- `@aibtc/tx-schemas/http`
+
+## Schema Rules
+
+- Canonical payment states live in `core` and are the only shared payment-state source of truth.
+- `rpc` and `http` may differ in field names and transport ergonomics, but they must reuse the same state semantics.
+- The default protected-resource delivery invariant is `deliver-only-on-confirmed`.
+- Any product that delivers on in-flight states should document that as an application exception, not a canonical package rule.
+
+More detail lives in [docs/package-schemas.md](docs/package-schemas.md),
+[docs/x402-approval-spec.md](docs/x402-approval-spec.md), and
+[docs/x402-state-machines.md](docs/x402-state-machines.md).
