@@ -32,6 +32,7 @@ Polling and status responses should expose:
 
 - canonical `status`
 - relay-owned `paymentId`
+- `checkStatusUrl` when the transport knows the canonical poll endpoint
 - normalized `terminalReason` when the outcome is terminal and known
 - transport-local `errorCode` only as an adapter detail, not as the semantic source of truth
 
@@ -56,6 +57,7 @@ Relay-owned responsibilities:
 
 - `RpcSubmitPaymentAccepted.status` should return `queued` for normal acceptance and `queued_with_warning` only as a temporary compatibility shim while warning-aware callers migrate.
 - `RpcCheckPaymentResult.status` and `HttpPaymentStatusResponse.status` must never return `submitted`.
+- `RpcCheckPaymentResult` and `HttpPaymentStatusResponse` may both surface `checkStatusUrl` as an additive canonical poll hint.
 - `terminalReason` is additive and should be emitted wherever relay adapters already know the normalized terminal classification.
 
 ## Migration Order

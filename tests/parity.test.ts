@@ -11,6 +11,7 @@ describe("rpc/http semantic parity", () => {
     const rpc = RpcCheckPaymentResultSchema.parse({
       paymentId: "pay_1234567890abcdef",
       status: "queued",
+      checkStatusUrl: "https://example.com/payment/pay_1234567890abcdef",
     });
 
     const http = HttpPaymentStatusResponseSchema.parse({
@@ -23,6 +24,8 @@ describe("rpc/http semantic parity", () => {
     expect(PAYMENT_STATE_TO_CATEGORY[http.status]).toBe("in-flight");
     expect(PAYMENT_STATE_DEFAULT_DELIVERY[rpc.status]).toBe(false);
     expect(PAYMENT_STATE_DEFAULT_DELIVERY[http.status]).toBe(false);
+    expect(rpc.checkStatusUrl).toBe("https://example.com/payment/pay_1234567890abcdef");
+    expect(http.checkStatusUrl).toBe("/api/payment-status/pay_1234567890abcdef");
   });
 
   it("keeps terminal failures terminal across rpc and http polling shapes", () => {

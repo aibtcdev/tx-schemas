@@ -70,6 +70,7 @@ const settleRequest = HttpSettleRequestSchema.parse({
 - The default protected-resource delivery invariant is `deliver-only-on-confirmed`.
 - Any product that delivers on in-flight states should document that as an application exception, not a canonical package rule.
 - `paymentId` is relay-owned and duplicate submission should reuse the same `paymentId` until terminal resolution.
+- Polling contracts may surface `checkStatusUrl` as an additive convenience field, and internal/external polling should treat it as another way to reach the same `paymentId` lifecycle.
 - Terminal polling responses should carry a normalized `terminalReason` when one is known, even if transports also emit local error codes.
 
 More detail lives in [docs/package-schemas.md](docs/package-schemas.md),

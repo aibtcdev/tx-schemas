@@ -90,10 +90,27 @@ describe("rpc schemas", () => {
       error: "Broadcast failed",
       errorCode: "BROADCAST_FAILED",
       retryable: true,
+      checkStatusUrl: "https://example.com/payment/pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
     });
 
     expect(result.status).toBe("failed");
     expect(result.terminalReason).toBe("broadcast_failure");
     expect(result.errorCode).toBe("BROADCAST_FAILED");
+    expect(result.checkStatusUrl).toBe(
+      "https://example.com/payment/pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
+    );
+  });
+
+  it("accepts poll-url hints on in-flight payment checks", () => {
+    const result = RpcCheckPaymentResultSchema.parse({
+      paymentId: "pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
+      status: "queued",
+      checkStatusUrl: "https://example.com/payment/pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
+    });
+
+    expect(result.status).toBe("queued");
+    expect(result.checkStatusUrl).toBe(
+      "https://example.com/payment/pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
+    );
   });
 });

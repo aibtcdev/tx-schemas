@@ -107,6 +107,7 @@ export const RpcCheckPaymentResultSchema = z.object({
   errorCode: RpcErrorCodeSchema.optional(),
   retryable: z.boolean().optional(),
   senderNonceInfo: RpcSenderNonceInfoSchema.optional(),
+  checkStatusUrl: UrlSchema.optional(),
 });
 
 export type RpcSubmitPaymentRequest = z.infer<typeof RpcSubmitPaymentRequestSchema>;
