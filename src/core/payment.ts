@@ -37,7 +37,6 @@ export const RequiresPaymentStatusSchema = PaymentStatusBaseSchema.extend({
   category: z.literal(PAYMENT_STATE_TO_CATEGORY.requires_payment),
 });
 
-export const SubmittedPaymentStatusSchema = inFlightStatusSchema("submitted");
 export const QueuedPaymentStatusSchema = inFlightStatusSchema("queued");
 export const BroadcastingPaymentStatusSchema = inFlightStatusSchema("broadcasting");
 export const MempoolPaymentStatusSchema = inFlightStatusSchema("mempool");
@@ -81,7 +80,6 @@ export const NotFoundPaymentStatusSchema = PaymentStatusBaseSchema.extend({
 
 export const PaymentStatusSchema = z.discriminatedUnion("state", [
   RequiresPaymentStatusSchema,
-  SubmittedPaymentStatusSchema,
   QueuedPaymentStatusSchema,
   BroadcastingPaymentStatusSchema,
   MempoolPaymentStatusSchema,
@@ -92,7 +90,6 @@ export const PaymentStatusSchema = z.discriminatedUnion("state", [
 ]);
 
 export const TrackedPaymentStatusSchema = z.discriminatedUnion("state", [
-  SubmittedPaymentStatusSchema,
   QueuedPaymentStatusSchema,
   BroadcastingPaymentStatusSchema,
   MempoolPaymentStatusSchema,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TrackedPaymentStateSchema } from "../core/enums.js";
+import { TerminalReasonSchema } from "../core/terminal-reasons.js";
 import {
   AmountStringSchema,
   NonNegativeIntegerSchema,
@@ -177,6 +178,7 @@ export const HttpPaymentStatusResponseSchema = z.object({
   blockHeight: NonNegativeIntegerSchema.optional(),
   confirmedAt: z.string().datetime({ offset: true }).optional(),
   explorerUrl: UrlSchema.optional(),
+  terminalReason: TerminalReasonSchema.optional(),
   error: z.string().min(1).optional(),
   errorCode: z.string().min(1).optional(),
   retryable: z.boolean().optional(),

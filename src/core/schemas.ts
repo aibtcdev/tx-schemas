@@ -8,7 +8,6 @@ export {
   QueuedPaymentStatusSchema,
   ReplacedPaymentStatusSchema,
   RequiresPaymentStatusSchema,
-  SubmittedPaymentStatusSchema,
   TerminalPaymentStatusSchema,
   TrackedPaymentStatusSchema,
 } from "./payment.js";

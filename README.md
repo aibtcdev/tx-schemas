@@ -64,10 +64,15 @@ const settleRequest = HttpSettleRequestSchema.parse({
 ## Schema Rules
 
 - Canonical payment states live in `core` and are the only shared payment-state source of truth.
+- Public canonical states are `requires_payment`, `queued`, `broadcasting`, `mempool`, `confirmed`, `failed`, `replaced`, and `not_found`.
+- `submitted` is reserved for relay internals and must not appear in the caller-facing contract.
 - `rpc` and `http` may differ in field names and transport ergonomics, but they must reuse the same state semantics.
 - The default protected-resource delivery invariant is `deliver-only-on-confirmed`.
 - Any product that delivers on in-flight states should document that as an application exception, not a canonical package rule.
+- `paymentId` is relay-owned and duplicate submission should reuse the same `paymentId` until terminal resolution.
+- Terminal polling responses should carry a normalized `terminalReason` when one is known, even if transports also emit local error codes.
 
 More detail lives in [docs/package-schemas.md](docs/package-schemas.md),
+[docs/boring-state-machine-contract.md](docs/boring-state-machine-contract.md),
 [docs/x402-approval-spec.md](docs/x402-approval-spec.md), and
 [docs/x402-state-machines.md](docs/x402-state-machines.md).

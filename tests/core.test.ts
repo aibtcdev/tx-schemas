@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CanonicalDomainBoundary,
   PaymentIdSchema,
+  PaymentStateSchema,
   PaymentStateCategoryByState,
   PaymentStatusSchema,
   ProtectedResourceDeliverableStateSchema,
@@ -22,6 +23,10 @@ describe("core payment semantics", () => {
   it("accepts relay payment ids and rejects arbitrary identifiers", () => {
     expect(PaymentIdSchema.safeParse("pay_01JMVP9QE8XA3BDGM5RN7KWTZ4").success).toBe(true);
     expect(PaymentIdSchema.safeParse("abc123").success).toBe(false);
+  });
+
+  it("rejects the internal-only submitted state from the public contract", () => {
+    expect(PaymentStateSchema.safeParse("submitted").success).toBe(false);
   });
 
   it("rejects mismatched payment state and category combinations", () => {
@@ -47,5 +52,16 @@ describe("core payment semantics", () => {
     expect(TerminalReasonSchema.parse("queue_unavailable")).toBe("queue_unavailable");
     expect(TERMINAL_REASON_TO_STATE.nonce_replacement).toBe("replaced");
     expect(TERMINAL_REASON_TO_STATE.expired).toBe("not_found");
+  });
+
+  it("documents relay-owned payment identity and recovery boundaries", () => {
+    expect(CanonicalDomainBoundary.paymentIdentity.owner).toBe("relay");
+    expect(CanonicalDomainBoundary.paymentIdentity.field).toBe("paymentId");
+    expect(CanonicalDomainBoundary.recoveryBoundaries.senderOwned).toContain(
+      "transaction rebuild after sender nonce stale/gap",
+    );
+    expect(CanonicalDomainBoundary.recoveryBoundaries.relayOwned).toContain(
+      "payment identity lifecycle",
+    );
   });
 });

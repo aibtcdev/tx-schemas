@@ -70,4 +70,17 @@ describe("http schemas", () => {
 
     expect(result.status).toBe("mempool");
   });
+
+  it("accepts normalized terminal reasons in polling responses", () => {
+    const result = HttpPaymentStatusResponseSchema.parse({
+      paymentId: "pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
+      status: "failed",
+      terminalReason: "sender_nonce_stale",
+      error: "Sender nonce is stale",
+      retryable: true,
+    });
+
+    expect(result.terminalReason).toBe("sender_nonce_stale");
+    expect(result.retryable).toBe(true);
+  });
 });

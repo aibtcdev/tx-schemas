@@ -83,7 +83,7 @@ stateDiagram-v2
 
     PollPaymentId --> DeliverConfirmed: checkPayment=confirmed
     PollPaymentId --> DeliverConfirmed: checkPayment=mempool
-    PollPaymentId --> DeliverPending: poll exhausted with queued/submitted/broadcasting/mempool
+    PollPaymentId --> DeliverPending: poll exhausted with queued/broadcasting/mempool
     PollPaymentId --> RelayRejected: checkPayment=failed
     PollPaymentId --> RelayRejected: checkPayment=replaced
     PollPaymentId --> RelayRejected: checkPayment=not_found
@@ -117,10 +117,10 @@ This is the async `paymentId` lifecycle behind `submitPayment()` and `checkPayme
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Submitted
+    [*] --> Accepted
 
-    Submitted --> Failed: invalid tx / not sponsored / stale nonce / duplicate nonce
-    Submitted --> Queued: paymentId created + KV record written + queue send ok
+    Accepted --> Failed: invalid tx / not sponsored / stale nonce / duplicate nonce
+    Accepted --> Queued: paymentId created + KV record written + queue send ok
 
     Queued --> Broadcasting: queue consumer starts work
     Queued --> Queued: held sender nonce gap
@@ -143,9 +143,11 @@ stateDiagram-v2
 
 Stored `paymentId` statuses exposed by `checkPayment()`:
 
-- Pending/in-flight: `queued`, `submitted`, `broadcasting`, `mempool`
+- Pending/in-flight: `queued`, `broadcasting`, `mempool`
 - Terminal: `confirmed`, `failed`, `replaced`
 - Missing/expired: `not_found`
+
+The relay may still track a more detailed internal acceptance/submission step, but caller-facing RPC and HTTP contracts should collapse that into `queued`.
 
 ## 4. Direct Relay Settlement State Machine: `/settle` to Hiro final status
 

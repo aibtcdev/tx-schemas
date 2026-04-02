@@ -2,7 +2,6 @@ import { z } from "zod";
 
 export const PAYMENT_STATES = [
   "requires_payment",
-  "submitted",
   "queued",
   "broadcasting",
   "mempool",
@@ -13,7 +12,6 @@ export const PAYMENT_STATES = [
 ] as const;
 
 export const TRACKED_PAYMENT_STATES = [
-  "submitted",
   "queued",
   "broadcasting",
   "mempool",
@@ -33,7 +31,6 @@ export const PAYMENT_STATE_CATEGORIES = [
 export const PRE_PAYMENT_STATES = ["requires_payment"] as const;
 
 export const IN_FLIGHT_STATES = [
-  "submitted",
   "queued",
   "broadcasting",
   "mempool",
@@ -55,7 +52,6 @@ export const TerminalFailureStateSchema = z.enum(TERMINAL_FAILURE_STATES);
 
 export const PAYMENT_STATE_TO_CATEGORY = {
   requires_payment: "pre-payment",
-  submitted: "in-flight",
   queued: "in-flight",
   broadcasting: "in-flight",
   mempool: "in-flight",
@@ -67,7 +63,6 @@ export const PAYMENT_STATE_TO_CATEGORY = {
 
 export const PAYMENT_STATE_DEFAULT_DELIVERY = {
   requires_payment: false,
-  submitted: false,
   queued: false,
   broadcasting: false,
   mempool: false,
@@ -84,7 +79,6 @@ export const paymentStateDefaultDeliveryByState = PAYMENT_STATE_DEFAULT_DELIVERY
 
 export const PAYMENT_STATE_TRANSITIONS = {
   requires_payment: [] as const,
-  submitted: ["queued", "failed"] as const,
   queued: ["queued", "broadcasting", "failed"] as const,
   broadcasting: ["queued", "mempool", "failed"] as const,
   mempool: ["mempool", "confirmed", "failed", "replaced"] as const,
@@ -102,8 +96,25 @@ export const CanonicalDomainBoundary = {
     defaultRule: "deliver-only-on-confirmed",
     deliverableStates: ["confirmed"] as const,
   },
+  paymentIdentity: {
+    owner: "relay",
+    field: "paymentId",
+    duplicateSubmissionPolicy: "same-submission-reuses-paymentId-until-terminal-outcome",
+  },
+  recoveryBoundaries: {
+    senderOwned: [
+      "sender nonce correctness",
+      "transaction rebuild after sender nonce stale/gap",
+      "sender-wallet recovery actions",
+    ] as const,
+    relayOwned: [
+      "payment identity lifecycle",
+      "sponsor ordering and sponsor nonce recovery",
+      "in-flight payment transitions and terminal settlement truth",
+    ] as const,
+  },
   transportBoundaries: {
-    sharedDomain: ["state", "category", "terminal-reason"] as const,
+    sharedDomain: ["state", "category", "terminal-reason", "paymentId ownership"] as const,
     rpc: ["service-binding request/response shapes", "internal relay error codes"] as const,
     http: ["x402 request/response shapes", "polling and error envelopes"] as const,
   },

@@ -55,12 +55,14 @@ describe("rpc schemas", () => {
     const result = RpcCheckPaymentResultSchema.parse({
       paymentId: "pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
       status: "failed",
+      terminalReason: "broadcast_failure",
       error: "Broadcast failed",
       errorCode: "BROADCAST_FAILED",
       retryable: true,
     });
 
     expect(result.status).toBe("failed");
+    expect(result.terminalReason).toBe("broadcast_failure");
     expect(result.errorCode).toBe("BROADCAST_FAILED");
   });
 });

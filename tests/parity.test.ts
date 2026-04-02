@@ -29,12 +29,14 @@ describe("rpc/http semantic parity", () => {
     const rpc = RpcCheckPaymentResultSchema.parse({
       paymentId: "pay_1234567890abcdef",
       status: "not_found",
+      terminalReason: "expired",
       error: "Payment expired",
     });
 
     const http = HttpPaymentStatusResponseSchema.parse({
       paymentId: "pay_1234567890abcdef",
       status: "not_found",
+      terminalReason: "expired",
       error: "Payment expired",
     });
 
@@ -42,5 +44,6 @@ describe("rpc/http semantic parity", () => {
     expect(PAYMENT_STATE_TO_CATEGORY[http.status]).toBe("terminal-failure");
     expect(PAYMENT_STATE_DEFAULT_DELIVERY[rpc.status]).toBe(false);
     expect(PAYMENT_STATE_DEFAULT_DELIVERY[http.status]).toBe(false);
+    expect(rpc.terminalReason).toBe(http.terminalReason);
   });
 });

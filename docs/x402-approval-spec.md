@@ -68,14 +68,13 @@ All other repos consume that model. They do not redefine it.
 
 ### Canonical Payment States
 
-The shared payment lifecycle is:
+The shared caller-facing payment lifecycle is:
 
-`requires_payment -> submitted -> queued -> broadcasting -> mempool -> confirmed | failed | replaced | not_found`
+`requires_payment -> queued -> broadcasting -> mempool -> confirmed | failed | replaced | not_found`
 
 These states mean:
 
 - `requires_payment`: protected resource requires proof of payment
-- `submitted`: relay accepted a submission request and assigned identity
 - `queued`: accepted but not yet broadcasting
 - `broadcasting`: relay is actively attempting sponsor/broadcast work
 - `mempool`: transaction accepted by node/network and awaiting finality
@@ -84,12 +83,14 @@ These states mean:
 - `replaced`: terminal failure caused by nonce replacement or supersession
 - `not_found`: missing, expired, or unknown payment identity
 
+Relay internals may retain a richer acceptance step such as `submitted`, but that state is internal-only and must be collapsed into `queued` before it reaches shared caller-facing contracts.
+
 ### Canonical State Categories
 
 Every state must fit one category:
 
 - pre-payment: `requires_payment`
-- in-flight: `submitted`, `queued`, `broadcasting`, `mempool`
+- in-flight: `queued`, `broadcasting`, `mempool`
 - terminal-success: `confirmed`
 - terminal-failure: `failed`, `replaced`, `not_found`
 
@@ -268,6 +269,7 @@ At minimum, all consumers must converge on:
 - one `PaymentState` enum
 - one `PaymentStateCategory` mapping
 - one `PaymentTerminalReason` or equivalent error taxonomy
+- one relay-owned `paymentId` identity contract with duplicate-submission reuse semantics
 - one settlement response shape for `HTTP`
 - one settlement response shape for `RPC`
 - one rule set for which states permit resource delivery
@@ -414,7 +416,7 @@ Approval requires automated tests that enforce the architecture, not just the im
 ### State Transition Tests
 
 - invalid transitions are rejected
-- `submitted -> queued -> broadcasting -> mempool -> confirmed` is accepted
+- `queued -> broadcasting -> mempool -> confirmed` is accepted
 - `mempool -> replaced` is accepted
 - `failed -> confirmed` is rejected
 - `replaced -> confirmed` is rejected

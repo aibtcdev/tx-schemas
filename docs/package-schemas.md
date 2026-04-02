@@ -41,12 +41,16 @@ RPC and HTTP may not redefine:
 The approval spec establishes these package-level semantics:
 
 - `confirmed` is the only canonical terminal-success state.
-- `submitted`, `queued`, `broadcasting`, and `mempool` are in-flight states.
+- `queued`, `broadcasting`, and `mempool` are in-flight states.
+- `submitted` may still exist inside relay internals, but it is not part of the shared caller-facing contract.
 - `failed`, `replaced`, and `not_found` are terminal-failure states.
 - resource delivery during in-flight states is transport/product policy, not a new domain state
+- duplicate submission should reuse the same relay-owned `paymentId` until that payment reaches a terminal state
+- polling/status adapters should emit canonical `terminalReason` values when they know the terminal outcome
 
 ## Documented Assumptions
 
 - Terminal reasons are normalized from the repo docs into stable package enums. Current relay/service error codes stay transport-specific in `rpc`.
 - `paymentId` is treated as a relay-owned identifier with a `pay_` prefix because first-party polling endpoints require that prefix.
+- Sender-wallet nonce repair belongs to clients; sponsor ordering and sponsor-wallet recovery belong to the relay.
 - Address and URL primitives are intentionally light-touch. This package validates shared API schemas, not chain-specific checksum rules.

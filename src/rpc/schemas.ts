@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { InFlightPaymentStateSchema, TrackedPaymentStateSchema } from "../core/enums.js";
+import { TerminalReasonSchema } from "../core/terminal-reasons.js";
 import {
   AmountStringSchema,
   NonNegativeIntegerSchema,
@@ -69,7 +70,7 @@ export const RpcSubmitPaymentRequestSchema = z.object({
 export const RpcSubmitPaymentAcceptedSchema = z.object({
   accepted: z.literal(true),
   paymentId: PaymentIdSchema,
-  status: z.union([InFlightPaymentStateSchema, z.literal("queued_with_warning")]),
+  status: z.union([z.literal("queued"), z.literal("queued_with_warning")]),
   senderNonce: RpcSenderNonceInfoSchema.optional(),
   warning: RpcSubmitPaymentWarningSchema.optional(),
   checkStatusUrl: UrlSchema.optional(),
@@ -101,6 +102,7 @@ export const RpcCheckPaymentResultSchema = z.object({
   blockHeight: NonNegativeIntegerSchema.optional(),
   confirmedAt: z.string().datetime({ offset: true }).optional(),
   explorerUrl: UrlSchema.optional(),
+  terminalReason: TerminalReasonSchema.optional(),
   error: z.string().min(1).optional(),
   errorCode: RpcErrorCodeSchema.optional(),
   retryable: z.boolean().optional(),
