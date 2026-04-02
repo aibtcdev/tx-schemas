@@ -82,22 +82,23 @@ stateDiagram-v2
     RpcSubmit --> PollPaymentId: submitPayment accepted=true + paymentId
 
     PollPaymentId --> DeliverConfirmed: checkPayment=confirmed
-    PollPaymentId --> DeliverConfirmed: checkPayment=mempool
-    PollPaymentId --> DeliverPending: poll exhausted with queued/broadcasting/mempool
+    PollPaymentId --> StagePending: checkPayment=queued/broadcasting/mempool
+    PollPaymentId --> StagePending: poll exhausted with queued/broadcasting/mempool
     PollPaymentId --> RelayRejected: checkPayment=failed
     PollPaymentId --> RelayRejected: checkPayment=replaced
     PollPaymentId --> RelayRejected: checkPayment=not_found
     PollPaymentId --> RelayUnavailable: RPC error / circuit breaker
 
     HttpSettle --> DeliverConfirmed: relay returns confirmed
-    HttpSettle --> DeliverPending: relay returns pending
+    HttpSettle --> StagePending: relay returns pending
     HttpSettle --> RelayRejected: 4xx settle rejection
     HttpSettle --> RelayUnavailable: 5xx / timeout
 
     DeliverConfirmed --> StoreResource
-    DeliverPending --> StoreResource
+    StagePending --> PendingResponse
 
     StoreResource --> SuccessResponse
+    PendingResponse --> [*]
     SuccessResponse --> [*]
 
     RelayRejected --> ErrorResponse
@@ -107,8 +108,8 @@ stateDiagram-v2
 
 What the service returns:
 
-- `confirmed` or `mempool`: resource is delivered normally.
-- `pending`: resource is still delivered, but response includes `paymentStatus: "pending"` and `paymentId`.
+- `confirmed`: resource is delivered normally.
+- `queued`, `broadcasting`, `mempool`, or coarse `pending`: resource is not delivered by default; the service may stage provisional data keyed by `paymentId` and return polling instructions.
 - `failed`, `replaced`, `not_found`, or relay unavailability: request fails.
 
 ## 3. Relay Queue Payment State Machine: `x402-sponsor-relay` RPC path
@@ -119,8 +120,9 @@ This is the async `paymentId` lifecycle behind `submitPayment()` and `checkPayme
 stateDiagram-v2
     [*] --> Accepted
 
-    Accepted --> Failed: invalid tx / not sponsored / stale nonce / duplicate nonce
     Accepted --> Queued: paymentId created + KV record written + queue send ok
+    Accepted --> Queued: exact duplicate of already-known payment reuses existing paymentId
+    Accepted --> Failed: invalid tx / not sponsored / stale nonce / conflicting same-nonce replacement
 
     Queued --> Broadcasting: queue consumer starts work
     Queued --> Queued: held sender nonce gap
@@ -148,6 +150,8 @@ Stored `paymentId` statuses exposed by `checkPayment()`:
 - Missing/expired: `not_found`
 
 The relay may still track a more detailed internal acceptance/submission step, but caller-facing RPC and HTTP contracts should collapse that into `queued`.
+
+Duplicate sender nonce is not always a terminal outcome. Exact replay of the same already-known signed payment should converge on the existing `paymentId`, while a same-nonce different-tx conflict remains a rejection/failure path.
 
 ## 4. Direct Relay Settlement State Machine: `/settle` to Hiro final status
 

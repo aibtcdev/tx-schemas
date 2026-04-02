@@ -58,6 +58,7 @@
     "README.md",
     "docs/boring-state-machine-contract.md",
     "docs/package-schemas.md",
+    "docs/workers-baseline.md",
     "docs/x402-approval-spec.md",
     "docs/x402-state-machines.md",
     "LICENSE"
