@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.2.1...tx-schemas-v0.2.2) (2026-04-02)
+
+
+### Bug Fixes
+
+* add RPC poll URL hint to payment check schema ([41cee0a](https://github.com/aibtcdev/tx-schemas/commit/41cee0a45b1c3a056ad2955d84b753d46edf0ec5))
+
 ## [0.2.1](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.2.0...tx-schemas-v0.2.1) (2026-04-02)
 
 
