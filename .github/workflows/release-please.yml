@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      publish_existing:
+        description: Publish the current package.json version even if no new release is created in this run
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -27,7 +33,7 @@ jobs:
 
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
+    if: ${{ needs.release-please.outputs.release_created || (github.event_name == 'workflow_dispatch' && inputs.publish_existing) }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
