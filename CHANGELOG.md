@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.2.2...tx-schemas-v0.3.0) (2026-04-03)
+
+
+### Features
+
+* align duplicate submit rpc contract with canonical in-flight states ([dedcf21](https://github.com/aibtcdev/tx-schemas/commit/dedcf213cd1a16c762a46199a7b5a5dc4421cea2))
+
 ## [0.2.2](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.2.1...tx-schemas-v0.2.2) (2026-04-02)
 
 
