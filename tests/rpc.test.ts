@@ -52,6 +52,33 @@ describe("rpc schemas", () => {
     expect(result.status).toBe("queued");
   });
 
+  it("accepts duplicate reuse responses that surface the current in-flight caller-facing status", () => {
+    for (const status of ["queued", "broadcasting", "mempool"] as const) {
+      const result = RpcSubmitPaymentResultSchema.parse({
+        accepted: true,
+        paymentId: "pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
+        status,
+        checkStatusUrl: "https://example.com/payment/pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
+      });
+
+      expect(result.accepted).toBe(true);
+      if (!result.accepted) {
+        throw new Error("Expected an accepted RPC submit result");
+      }
+      expect(result.status).toBe(status);
+    }
+  });
+
+  it("rejects the internal-only submitted status from accepted submit responses", () => {
+    const result = RpcSubmitPaymentResultSchema.safeParse({
+      accepted: true,
+      paymentId: "pay_01JMVP9QE8XA3BDGM5RN7KWTZ4",
+      status: "submitted",
+    });
+
+    expect(result.success).toBe(false);
+  });
+
   it("accepts a rejected submit response with relay-specific error codes", () => {
     const result = RpcSubmitPaymentResultSchema.parse({
       accepted: false,

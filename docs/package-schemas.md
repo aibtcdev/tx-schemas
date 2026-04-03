@@ -46,6 +46,8 @@ The approval spec establishes these package-level semantics:
 - `failed`, `replaced`, and `not_found` are terminal-failure states.
 - resource delivery during in-flight states is transport/product policy, not a new domain state
 - duplicate submission should reuse the same relay-owned `paymentId` until that payment reaches a terminal state
+- accepted duplicate submit responses should return the current caller-facing in-flight status for that `paymentId`: `queued`, `broadcasting`, or `mempool`
+- `queued_with_warning` remains an RPC-only temporary compatibility shim while warning-aware callers migrate
 - polling/status adapters may expose `checkStatusUrl` as an additive canonical poll hint for that same `paymentId`
 - polling/status adapters should emit canonical `terminalReason` values when they know the terminal outcome
 

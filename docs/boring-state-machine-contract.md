@@ -24,6 +24,7 @@ Notes:
 
 - `paymentId` is relay-owned.
 - Duplicate submission of the same already-known payment artifact should reuse the same `paymentId` until that payment reaches a terminal state.
+- Accepted duplicate submit responses should return the current caller-facing in-flight status for that reused `paymentId`: `queued`, `broadcasting`, or `mempool` as applicable.
 - Internal and external polling should both treat `paymentId` as the stable handle for in-flight and terminal lookup.
 
 ## Terminal Outcome Contract
@@ -55,7 +56,8 @@ Relay-owned responsibilities:
 
 ## Compatibility Notes
 
-- `RpcSubmitPaymentAccepted.status` should return `queued` for normal acceptance and `queued_with_warning` only as a temporary compatibility shim while warning-aware callers migrate.
+- `RpcSubmitPaymentAccepted.status` should return canonical caller-facing in-flight states: `queued` for fresh acceptance, and `queued`, `broadcasting`, or `mempool` when duplicate reuse surfaces the active state of the reused `paymentId`.
+- `queued_with_warning` remains allowed only as a temporary compatibility shim while warning-aware callers migrate.
 - `RpcCheckPaymentResult.status` and `HttpPaymentStatusResponse.status` must never return `submitted`.
 - `RpcCheckPaymentResult` and `HttpPaymentStatusResponse` may both surface `checkStatusUrl` as an additive canonical poll hint.
 - `terminalReason` is additive and should be emitted wherever relay adapters already know the normalized terminal classification.
@@ -72,7 +74,7 @@ Relay-owned responsibilities:
 | Scenario | Canonical status | terminalReason | Service delivery default | Client action |
 | --- | --- | --- | --- | --- |
 | Fresh submission accepted | `queued` | | wait or poll by `paymentId` | no rebuild |
-| Duplicate same submission | `queued` or later existing status | | do not create a second receipt | reuse same `paymentId` / same tx |
+| Duplicate same submission | `queued`, `broadcasting`, or `mempool` | | do not create a second receipt | reuse same `paymentId` / same tx |
 | Relay broadcasting | `broadcasting` | | do not deliver by default | poll |
 | Seen in mempool | `mempool` | | do not deliver by default unless route exception is documented | poll |
 | Confirmed on-chain | `confirmed` | | deliver | success |

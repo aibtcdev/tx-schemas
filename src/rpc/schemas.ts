@@ -70,7 +70,7 @@ export const RpcSubmitPaymentRequestSchema = z.object({
 export const RpcSubmitPaymentAcceptedSchema = z.object({
   accepted: z.literal(true),
   paymentId: PaymentIdSchema,
-  status: z.union([z.literal("queued"), z.literal("queued_with_warning")]),
+  status: z.union([InFlightPaymentStateSchema, z.literal("queued_with_warning")]),
   senderNonce: RpcSenderNonceInfoSchema.optional(),
   warning: RpcSubmitPaymentWarningSchema.optional(),
   checkStatusUrl: UrlSchema.optional(),
