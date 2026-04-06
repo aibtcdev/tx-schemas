@@ -11,6 +11,11 @@ export const FAILED_TERMINAL_REASONS = [
   "broadcast_failure",
   "chain_abort",
   "internal_error",
+  "sponsor_exhausted",
+  "sponsor_nonce_conflict",
+  "origin_chaining_limit",
+  "broadcast_rate_limited",
+  "sender_hand_expired",
 ] as const;
 
 export const REPLACED_TERMINAL_REASONS = [
@@ -55,11 +60,16 @@ export const TERMINAL_REASON_TO_STATE = {
   broadcast_failure: "failed",
   chain_abort: "failed",
   internal_error: "failed",
+  sponsor_exhausted: "failed",
+  sponsor_nonce_conflict: "failed",
+  origin_chaining_limit: "failed",
+  broadcast_rate_limited: "failed",
+  sender_hand_expired: "failed",
   nonce_replacement: "replaced",
   superseded: "replaced",
   expired: "not_found",
   unknown_payment_identity: "not_found",
-} as const;
+} as const satisfies Record<(typeof TERMINAL_REASONS)[number], "failed" | "replaced" | "not_found">;
 
 export const paymentTerminalStateByReason = TERMINAL_REASON_TO_STATE;
 
@@ -74,6 +84,11 @@ export const TERMINAL_REASON_TO_CATEGORY = {
   internal_error: "relay",
   broadcast_failure: "settlement",
   chain_abort: "settlement",
+  sponsor_exhausted: "relay",
+  sponsor_nonce_conflict: "relay",
+  origin_chaining_limit: "sender",
+  broadcast_rate_limited: "settlement",
+  sender_hand_expired: "sender",
   nonce_replacement: "replacement",
   superseded: "replacement",
   expired: "identity",
@@ -96,3 +111,4 @@ export type ReplacedTerminalReason = z.infer<typeof ReplacedTerminalReasonSchema
 export type NotFoundTerminalReason = z.infer<typeof NotFoundTerminalReasonSchema>;
 export type TerminalReason = z.infer<typeof TerminalReasonSchema>;
 export type TerminalReasonCategory = z.infer<typeof TerminalReasonCategorySchema>;
+export type TerminalReasonDetail = z.infer<typeof TerminalReasonDetailSchema>;
