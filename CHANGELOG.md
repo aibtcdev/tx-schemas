@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.3.0...tx-schemas-v0.4.0) (2026-04-06)
+
+
+### Features
+
+* add wallet state core schemas for nonce outcomes, capacity, and sender queues ([d6876b9](https://github.com/aibtcdev/tx-schemas/commit/d6876b939d19da1ec8c96ebed3102aa95a37e2d8))
+* extend terminal reasons, RPC error codes, and diagnostics for wallet state ([ab113eb](https://github.com/aibtcdev/tx-schemas/commit/ab113eb3477c8a82c503547a31f8528666bead40))
+* wallet state schemas (Phases 4-5) ([b5b7ea2](https://github.com/aibtcdev/tx-schemas/commit/b5b7ea21d65dfa74f70033c773c364857a9fd7c7))
+
+
+### Bug Fixes
+
+* add runtime invariants per arc0btc review suggestions ([7b66db6](https://github.com/aibtcdev/tx-schemas/commit/7b66db634ebd671b4c1239a22a64c690c8c7bfc9))
+* enforce schema invariants per PR review feedback ([0553735](https://github.com/aibtcdev/tx-schemas/commit/0553735f61639158ddafc80a86836631bea09880))
+
 ## [0.3.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.2.2...tx-schemas-v0.3.0) (2026-04-03)
 
 
