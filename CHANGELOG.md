@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.5.0...tx-schemas-v0.5.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* consistency cleanup for inline enum and legacy aliases ([#12](https://github.com/aibtcdev/tx-schemas/issues/12)) ([cd10f6c](https://github.com/aibtcdev/tx-schemas/commit/cd10f6c26049d593e5ff84461285a5c5cd2b9980))
+
 ## [0.5.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.4.0...tx-schemas-v0.5.0) (2026-04-06)
 
 
