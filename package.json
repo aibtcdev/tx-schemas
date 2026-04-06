@@ -35,6 +35,22 @@
       "types": "./dist/core/schemas.d.ts",
       "import": "./dist/core/schemas.js"
     },
+    "./core/nonce-outcome": {
+      "types": "./dist/core/nonce-outcome.d.ts",
+      "import": "./dist/core/nonce-outcome.js"
+    },
+    "./core/wallet-capacity": {
+      "types": "./dist/core/wallet-capacity.d.ts",
+      "import": "./dist/core/wallet-capacity.js"
+    },
+    "./core/sender-queue": {
+      "types": "./dist/core/sender-queue.d.ts",
+      "import": "./dist/core/sender-queue.js"
+    },
+    "./core/wallet-constants": {
+      "types": "./dist/core/wallet-constants.d.ts",
+      "import": "./dist/core/wallet-constants.js"
+    },
     "./rpc": {
       "types": "./dist/rpc/index.d.ts",
       "import": "./dist/rpc/index.js"
