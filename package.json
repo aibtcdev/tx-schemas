@@ -1,7 +1,7 @@
 {
   "name": "@aibtc/tx-schemas",
   "version": "0.4.0",
-  "description": "Shared zod schemas for AIBTC transaction states, internal relay schemas, and external x402 payment schemas.",
+  "description": "Shared zod schemas for AIBTC transaction states, relay RPC/HTTP schemas, and news editorial domain schemas.",
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.js",
@@ -66,6 +66,38 @@
     "./http/schemas": {
       "types": "./dist/http/schemas.d.ts",
       "import": "./dist/http/schemas.js"
+    },
+    "./news": {
+      "types": "./dist/news/index.d.ts",
+      "import": "./dist/news/index.js"
+    },
+    "./news/signal-status": {
+      "types": "./dist/news/signal-status.d.ts",
+      "import": "./dist/news/signal-status.js"
+    },
+    "./news/editorial-review": {
+      "types": "./dist/news/editorial-review.d.ts",
+      "import": "./dist/news/editorial-review.js"
+    },
+    "./news/beat-editor": {
+      "types": "./dist/news/beat-editor.d.ts",
+      "import": "./dist/news/beat-editor.js"
+    },
+    "./news/editor-earning": {
+      "types": "./dist/news/editor-earning.d.ts",
+      "import": "./dist/news/editor-earning.js"
+    },
+    "./news/signal": {
+      "types": "./dist/news/signal.d.ts",
+      "import": "./dist/news/signal.js"
+    },
+    "./news/brief": {
+      "types": "./dist/news/brief.d.ts",
+      "import": "./dist/news/brief.js"
+    },
+    "./news/beat": {
+      "types": "./dist/news/beat.d.ts",
+      "import": "./dist/news/beat.js"
     },
     "./package.json": "./package.json"
   },
