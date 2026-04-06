@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.4.0...tx-schemas-v0.5.0) (2026-04-06)
+
+
+### Features
+
+* **news:** add news editorial domain schemas ([#10](https://github.com/aibtcdev/tx-schemas/issues/10)) ([04063e2](https://github.com/aibtcdev/tx-schemas/commit/04063e24390c7e4f2ab4ad8557f5ef7e44281010))
+
 ## [0.4.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.3.0...tx-schemas-v0.4.0) (2026-04-06)
 
 
