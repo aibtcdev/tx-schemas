@@ -2,12 +2,13 @@ import { z } from "zod";
 
 /**
  * A recorded earning for a beat editor.
- * Editor earnings are stored in the shared earnings table with
- * reason encoded as "editor_review:{beat_slug}" to distinguish them
- * from correspondent earnings.
+ * Editor earnings are created by the system at compile time — one per
+ * brief-included signal on a beat with an active editor. The amount is
+ * determined by the beat's `editor_review_rate_sats` configuration.
  *
- * Matches the Earning interface in agent-news (same DB table shape).
- * reference_id holds the signal_id when the earning is tied to a specific review.
+ * Stored in the shared earnings table alongside correspondent earnings.
+ * reason is encoded as "editor_inclusion:{beat_slug}" to distinguish them.
+ * reference_id holds the signal_id for the included signal.
  * payout_txid is set by the Publisher after sending the sBTC payout.
  */
 export const EditorEarningSchema = z.object({
@@ -20,20 +21,4 @@ export const EditorEarningSchema = z.object({
   payout_txid: z.string().nullable().optional(),
 });
 
-/**
- * Input schema for an editor self-reporting an earning via
- * POST /api/editors/:address/earnings.
- *
- * beat_slug is encoded into the reason field as "editor_review:{beat_slug}".
- * signal_id (optional) maps to reference_id in the earnings table.
- * amount_sats must be a positive integer.
- */
-export const EditorEarningReportSchema = z.object({
-  beat_slug: z.string().min(1),
-  amount_sats: z.number().int().positive(),
-  reason: z.string().min(1),
-  signal_id: z.string().optional(),
-});
-
 export type EditorEarning = z.infer<typeof EditorEarningSchema>;
-export type EditorEarningReport = z.infer<typeof EditorEarningReportSchema>;

@@ -14,7 +14,6 @@ import {
   BeatEditorSchema,
   BeatEditorRegistrationSchema,
   EditorEarningSchema,
-  EditorEarningReportSchema,
   SignalSchema,
   SignalCreateSchema,
   SourceSchema,
@@ -44,27 +43,24 @@ describe("news signal status semantics", () => {
     expect((REVIEWABLE_SIGNAL_STATUSES as readonly string[]).includes("rejected")).toBe(true);
   });
 
-  it("transitions from submitted allow approve, reject, and replace", () => {
-    const transitions = SIGNAL_VALID_TRANSITIONS.submitted;
-    expect(transitions).toContain("approved");
-    expect(transitions).toContain("rejected");
-    expect(transitions).toContain("replaced");
+  it("transitions from submitted allow approve and reject only", () => {
+    expect([...SIGNAL_VALID_TRANSITIONS.submitted]).toEqual(["approved", "rejected"]);
   });
 
-  it("transitions from approved allow brief_included and replaced only", () => {
-    const transitions = SIGNAL_VALID_TRANSITIONS.approved;
-    expect(transitions).toContain("brief_included");
-    expect(transitions).toContain("replaced");
-    expect(transitions.length).toBe(2);
+  it("transitions from approved allow replaced, rejected, and brief_included", () => {
+    expect([...SIGNAL_VALID_TRANSITIONS.approved]).toEqual(["replaced", "rejected", "brief_included"]);
   });
 
-  it("brief_included is a terminal state with no further transitions", () => {
-    expect(SIGNAL_VALID_TRANSITIONS.brief_included.length).toBe(0);
+  it("transitions from replaced allow reconsidering (approved) or rejecting", () => {
+    expect([...SIGNAL_VALID_TRANSITIONS.replaced]).toEqual(["approved", "rejected"]);
   });
 
-  it("replaced and rejected are terminal states with no further transitions", () => {
-    expect(SIGNAL_VALID_TRANSITIONS.replaced.length).toBe(0);
-    expect(SIGNAL_VALID_TRANSITIONS.rejected.length).toBe(0);
+  it("transitions from rejected allow reconsidering (approved)", () => {
+    expect([...SIGNAL_VALID_TRANSITIONS.rejected]).toEqual(["approved"]);
+  });
+
+  it("transitions from brief_included allow publisher retract (replaced or rejected)", () => {
+    expect([...SIGNAL_VALID_TRANSITIONS.brief_included]).toEqual(["replaced", "rejected"]);
   });
 
   it("SignalStatusSchema rejects in_review", () => {
@@ -216,51 +212,10 @@ describe("news beat editor schemas", () => {
   });
 });
 
-describe("news editor earning schemas", () => {
-  it("EditorEarningReportSchema accepts a valid positive amount", () => {
-    const result = EditorEarningReportSchema.safeParse({
-      beat_slug: "quantum",
-      amount_sats: 500,
-      reason: "signal_review",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("EditorEarningReportSchema rejects zero amount_sats", () => {
-    const result = EditorEarningReportSchema.safeParse({
-      beat_slug: "quantum",
-      amount_sats: 0,
-      reason: "signal_review",
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("EditorEarningReportSchema rejects negative amount_sats", () => {
-    const result = EditorEarningReportSchema.safeParse({
-      beat_slug: "quantum",
-      amount_sats: -100,
-      reason: "signal_review",
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("EditorEarningReportSchema accepts optional signal_id", () => {
-    const result = EditorEarningReportSchema.safeParse({
-      beat_slug: "quantum",
-      amount_sats: 500,
-      reason: "brief_contribution",
-      signal_id: "sig_001",
-    });
-    expect(result.success).toBe(true);
-  });
-
-  it("EditorEarningReportSchema rejects missing beat_slug", () => {
-    const result = EditorEarningReportSchema.safeParse({
-      amount_sats: 500,
-      reason: "signal_review",
-    });
-    expect(result.success).toBe(false);
-  });
+describe("news editor earning schemas (system-created at compile)", () => {
+  // Editor earnings are no longer self-reported. They are created by the
+  // compile job for each brief-included signal on a beat with an active editor.
+  // EditorEarningReportSchema was removed — no self-report endpoint exists.
 });
 
 describe("news signal schemas", () => {
@@ -557,13 +512,13 @@ describe("news beat editor schema (full record)", () => {
 });
 
 describe("news editor earning schema (full record)", () => {
-  // Editor earnings are stored in the shared earnings table.
-  // The beat context is encoded in the reason field as "editor_review:{beat_slug}".
+  // Editor earnings are system-created at compile time in the shared earnings table.
+  // The beat context is encoded in the reason field as "editor_inclusion:{beat_slug}".
   const validEarning = {
     id: "earn_001",
     btc_address: "bc1qeditor",
     amount_sats: 500,
-    reason: "editor_review:quantum",
+    reason: "editor_inclusion:quantum",
     created_at: VALID_DATETIME,
   };
 
