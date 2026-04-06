@@ -13,7 +13,6 @@ import {
   EDITOR_STATUSES,
   BeatEditorSchema,
   BeatEditorRegistrationSchema,
-  EDITOR_EARNING_REASONS,
   EditorEarningSchema,
   EditorEarningReportSchema,
   SignalSchema,
@@ -186,7 +185,7 @@ describe("news editorial review invariants", () => {
 
 describe("news beat editor schemas", () => {
   it("includes all expected editor statuses", () => {
-    const expected = ["active", "suspended", "deactivated"];
+    const expected = ["active", "inactive"];
     expect([...EDITOR_STATUSES]).toEqual(expected);
   });
 
@@ -218,14 +217,8 @@ describe("news beat editor schemas", () => {
 });
 
 describe("news editor earning schemas", () => {
-  it("includes all expected earning reasons", () => {
-    const expected = ["signal_review", "brief_contribution", "bonus", "penalty"];
-    expect([...EDITOR_EARNING_REASONS]).toEqual(expected);
-  });
-
   it("EditorEarningReportSchema accepts a valid positive amount", () => {
     const result = EditorEarningReportSchema.safeParse({
-      btc_address: "bc1qeditor",
       beat_slug: "quantum",
       amount_sats: 500,
       reason: "signal_review",
@@ -235,7 +228,6 @@ describe("news editor earning schemas", () => {
 
   it("EditorEarningReportSchema rejects zero amount_sats", () => {
     const result = EditorEarningReportSchema.safeParse({
-      btc_address: "bc1qeditor",
       beat_slug: "quantum",
       amount_sats: 0,
       reason: "signal_review",
@@ -245,7 +237,6 @@ describe("news editor earning schemas", () => {
 
   it("EditorEarningReportSchema rejects negative amount_sats", () => {
     const result = EditorEarningReportSchema.safeParse({
-      btc_address: "bc1qeditor",
       beat_slug: "quantum",
       amount_sats: -100,
       reason: "signal_review",
@@ -253,25 +244,22 @@ describe("news editor earning schemas", () => {
     expect(result.success).toBe(false);
   });
 
-  it("EditorEarningReportSchema rejects unknown reason", () => {
+  it("EditorEarningReportSchema accepts optional signal_id", () => {
     const result = EditorEarningReportSchema.safeParse({
-      btc_address: "bc1qeditor",
-      beat_slug: "quantum",
-      amount_sats: 500,
-      reason: "unknown_reason",
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it("EditorEarningReportSchema accepts optional reference_id", () => {
-    const result = EditorEarningReportSchema.safeParse({
-      btc_address: "bc1qeditor",
       beat_slug: "quantum",
       amount_sats: 500,
       reason: "brief_contribution",
-      reference_id: "brief_2026-04-06",
+      signal_id: "sig_001",
     });
     expect(result.success).toBe(true);
+  });
+
+  it("EditorEarningReportSchema rejects missing beat_slug", () => {
+    const result = EditorEarningReportSchema.safeParse({
+      amount_sats: 500,
+      reason: "signal_review",
+    });
+    expect(result.success).toBe(false);
   });
 });
 
@@ -561,20 +549,21 @@ describe("news beat editor schema (full record)", () => {
     expect(BeatEditorSchema.safeParse({ ...validEditor, status: "pending" }).success).toBe(false);
   });
 
-  it("accepts optional deactivated_at datetime", () => {
+  it("accepts optional deactivated_at datetime when status is inactive", () => {
     expect(
-      BeatEditorSchema.safeParse({ ...validEditor, status: "deactivated", deactivated_at: VALID_DATETIME }).success,
+      BeatEditorSchema.safeParse({ ...validEditor, status: "inactive", deactivated_at: VALID_DATETIME }).success,
     ).toBe(true);
   });
 });
 
 describe("news editor earning schema (full record)", () => {
+  // Editor earnings are stored in the shared earnings table.
+  // The beat context is encoded in the reason field as "editor_review:{beat_slug}".
   const validEarning = {
     id: "earn_001",
     btc_address: "bc1qeditor",
-    beat_slug: "quantum",
     amount_sats: 500,
-    reason: "signal_review" as const,
+    reason: "editor_review:quantum",
     created_at: VALID_DATETIME,
   };
 
@@ -582,21 +571,29 @@ describe("news editor earning schema (full record)", () => {
     expect(EditorEarningSchema.safeParse(validEarning).success).toBe(true);
   });
 
-  it("accepts negative amount_sats (penalty deductions)", () => {
-    expect(EditorEarningSchema.safeParse({ ...validEarning, amount_sats: -100, reason: "penalty" }).success).toBe(true);
+  it("accepts negative amount_sats", () => {
+    expect(EditorEarningSchema.safeParse({ ...validEarning, amount_sats: -100 }).success).toBe(true);
   });
 
-  it("accepts optional payout_txid and voided_at", () => {
+  it("accepts optional payout_txid", () => {
     expect(
       EditorEarningSchema.safeParse({
         ...validEarning,
         payout_txid: "tx_abc",
-        voided_at: VALID_DATETIME,
       }).success,
     ).toBe(true);
   });
 
-  it("rejects unknown reason", () => {
-    expect(EditorEarningSchema.safeParse({ ...validEarning, reason: "unknown" }).success).toBe(false);
+  it("accepts optional reference_id (signal_id)", () => {
+    expect(
+      EditorEarningSchema.safeParse({
+        ...validEarning,
+        reference_id: "sig_001",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects empty reason", () => {
+    expect(EditorEarningSchema.safeParse({ ...validEarning, reason: "" }).success).toBe(false);
   });
 });

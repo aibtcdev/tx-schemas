@@ -2,11 +2,12 @@ import { z } from "zod";
 
 /**
  * Lifecycle statuses for a beat editor assignment.
+ * "active" = currently authorized to review signals on this beat.
+ * "inactive" = deactivated by the publisher (set via DELETE /api/beats/:slug/editors/:address).
  */
 export const EDITOR_STATUSES = [
   "active",
-  "suspended",
-  "deactivated",
+  "inactive",
 ] as const;
 
 export const EditorStatusSchema = z.enum(EDITOR_STATUSES);
