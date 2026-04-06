@@ -2,20 +2,27 @@ import { describe, expect, it } from "vitest";
 import {
   SIGNAL_STATUSES,
   REVIEWABLE_SIGNAL_STATUSES,
+  REVIEW_OUTCOME_STATUSES,
   SIGNAL_VALID_TRANSITIONS,
   SignalStatusSchema,
   ReviewableSignalStatusSchema,
+  ReviewOutcomeStatusSchema,
+  SignalReviewRequestSchema,
   EDITORIAL_REVIEW_RECOMMENDATIONS,
   EditorialReviewSchema,
   EDITOR_STATUSES,
+  BeatEditorSchema,
   BeatEditorRegistrationSchema,
   EDITOR_EARNING_REASONS,
+  EditorEarningSchema,
   EditorEarningReportSchema,
+  SignalSchema,
   SignalCreateSchema,
   SourceSchema,
   BriefSchema,
   BeatSchema,
   BeatClaimSchema,
+  BeatMemberSchema,
 } from "../src/news/index.js";
 
 const VALID_DATETIME = "2026-04-06T12:00:00Z";
@@ -75,6 +82,20 @@ describe("news signal status semantics", () => {
 
   it("ReviewableSignalStatusSchema accepts submitted", () => {
     expect(ReviewableSignalStatusSchema.safeParse("submitted").success).toBe(true);
+  });
+
+  it("ReviewOutcomeStatusSchema excludes submitted", () => {
+    expect(ReviewOutcomeStatusSchema.safeParse("submitted").success).toBe(false);
+  });
+
+  it("ReviewOutcomeStatusSchema accepts approved, rejected, replaced", () => {
+    expect(ReviewOutcomeStatusSchema.safeParse("approved").success).toBe(true);
+    expect(ReviewOutcomeStatusSchema.safeParse("rejected").success).toBe(true);
+    expect(ReviewOutcomeStatusSchema.safeParse("replaced").success).toBe(true);
+  });
+
+  it("REVIEW_OUTCOME_STATUSES contains only valid review outcomes", () => {
+    expect([...REVIEW_OUTCOME_STATUSES]).toEqual(["approved", "rejected", "replaced"]);
   });
 });
 
@@ -391,5 +412,178 @@ describe("news beat schema", () => {
       status: "pending",
     });
     expect(result.success).toBe(false);
+  });
+
+  it("BeatMemberSchema accepts valid member (no beat_slug)", () => {
+    const result = BeatMemberSchema.safeParse({
+      btc_address: "bc1qagent",
+      claimed_at: VALID_DATETIME,
+      status: "active",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("BeatMemberSchema rejects empty btc_address", () => {
+    const result = BeatMemberSchema.safeParse({
+      btc_address: "",
+      claimed_at: VALID_DATETIME,
+      status: "active",
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+describe("news signal review request schema", () => {
+  it("accepts approved without replaces_signal_id", () => {
+    const result = SignalReviewRequestSchema.safeParse({
+      signal_id: "sig_001",
+      new_status: "approved",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects submitted as a review outcome", () => {
+    const result = SignalReviewRequestSchema.safeParse({
+      signal_id: "sig_001",
+      new_status: "submitted",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("requires replaces_signal_id when new_status is replaced", () => {
+    const result = SignalReviewRequestSchema.safeParse({
+      signal_id: "sig_001",
+      new_status: "replaced",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts replaced with replaces_signal_id", () => {
+    const result = SignalReviewRequestSchema.safeParse({
+      signal_id: "sig_001",
+      new_status: "replaced",
+      replaces_signal_id: "sig_000",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects replaces_signal_id when new_status is not replaced", () => {
+    const result = SignalReviewRequestSchema.safeParse({
+      signal_id: "sig_001",
+      new_status: "approved",
+      replaces_signal_id: "sig_000",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts rejected with optional publisher_feedback", () => {
+    const result = SignalReviewRequestSchema.safeParse({
+      signal_id: "sig_001",
+      new_status: "rejected",
+      publisher_feedback: "Does not meet editorial standards.",
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("news signal schema (full record)", () => {
+  const validSignal = {
+    id: "sig_001",
+    beat_slug: "quantum",
+    beat_name: null,
+    btc_address: "bc1qcorrespondent",
+    headline: "Quantum breakthrough",
+    body: null,
+    sources: [{ url: "https://example.com/article", title: "Example" }],
+    tags: [],
+    created_at: VALID_DATETIME,
+    updated_at: VALID_DATETIME,
+    correction_of: null,
+    status: "submitted",
+    publisher_feedback: null,
+    reviewed_at: null,
+    disclosure: "Written by AI",
+  };
+
+  it("accepts a valid full signal record", () => {
+    expect(SignalSchema.safeParse(validSignal).success).toBe(true);
+  });
+
+  it("rejects empty sources array", () => {
+    expect(SignalSchema.safeParse({ ...validSignal, sources: [] }).success).toBe(false);
+  });
+
+  it("rejects unknown status", () => {
+    expect(SignalSchema.safeParse({ ...validSignal, status: "draft" }).success).toBe(false);
+  });
+
+  it("accepts all valid statuses", () => {
+    for (const status of SIGNAL_STATUSES) {
+      expect(SignalSchema.safeParse({ ...validSignal, status }).success).toBe(true);
+    }
+  });
+});
+
+describe("news beat editor schema (full record)", () => {
+  const validEditor = {
+    beat_slug: "quantum",
+    btc_address: "bc1qeditor",
+    status: "active" as const,
+    registered_at: VALID_DATETIME,
+    registered_by: "bc1qpublisher",
+    deactivated_at: null,
+  };
+
+  it("accepts a valid active editor", () => {
+    expect(BeatEditorSchema.safeParse(validEditor).success).toBe(true);
+  });
+
+  it("accepts all valid editor statuses", () => {
+    for (const status of EDITOR_STATUSES) {
+      expect(BeatEditorSchema.safeParse({ ...validEditor, status }).success).toBe(true);
+    }
+  });
+
+  it("rejects unknown editor status", () => {
+    expect(BeatEditorSchema.safeParse({ ...validEditor, status: "pending" }).success).toBe(false);
+  });
+
+  it("accepts optional deactivated_at datetime", () => {
+    expect(
+      BeatEditorSchema.safeParse({ ...validEditor, status: "deactivated", deactivated_at: VALID_DATETIME }).success,
+    ).toBe(true);
+  });
+});
+
+describe("news editor earning schema (full record)", () => {
+  const validEarning = {
+    id: "earn_001",
+    btc_address: "bc1qeditor",
+    beat_slug: "quantum",
+    amount_sats: 500,
+    reason: "signal_review" as const,
+    created_at: VALID_DATETIME,
+  };
+
+  it("accepts a valid earning record", () => {
+    expect(EditorEarningSchema.safeParse(validEarning).success).toBe(true);
+  });
+
+  it("accepts negative amount_sats (penalty deductions)", () => {
+    expect(EditorEarningSchema.safeParse({ ...validEarning, amount_sats: -100, reason: "penalty" }).success).toBe(true);
+  });
+
+  it("accepts optional payout_txid and voided_at", () => {
+    expect(
+      EditorEarningSchema.safeParse({
+        ...validEarning,
+        payout_txid: "tx_abc",
+        voided_at: VALID_DATETIME,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects unknown reason", () => {
+    expect(EditorEarningSchema.safeParse({ ...validEarning, reason: "unknown" }).success).toBe(false);
   });
 });

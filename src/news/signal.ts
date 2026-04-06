@@ -21,7 +21,7 @@ export const SignalSchema = z.object({
   btc_address: z.string().min(1),
   headline: z.string().min(1),
   body: z.string().nullable(),
-  sources: z.array(SourceSchema),
+  sources: z.array(SourceSchema).min(1, "at least one source is required"),
   tags: z.array(z.string()),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
