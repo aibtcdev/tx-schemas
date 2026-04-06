@@ -12,14 +12,31 @@ import {
 const FRONTIER_SEED_SOURCES = ["hiro", "transaction", "manual"] as const;
 const FRONTIER_HEALTH_STATES = ["current", "stale", "divergent"] as const;
 
-export const SenderFrontierSchema = z.object({
+const SenderFrontierBaseSchema = z.object({
   address: StacksAddressSchema,
   nextExpectedNonce: NonNegativeIntegerSchema,
   seededFrom: z.enum(FRONTIER_SEED_SOURCES),
   lastRefreshAt: IsoDateTimeSchema.nullable(),
-  frontierHealth: z.enum(FRONTIER_HEALTH_STATES),
-  staleSince: IsoDateTimeSchema.optional(),
 });
+
+const CurrentSenderFrontierSchema = SenderFrontierBaseSchema.extend({
+  frontierHealth: z.literal("current"),
+});
+
+const StaleSenderFrontierSchema = SenderFrontierBaseSchema.extend({
+  frontierHealth: z.literal("stale"),
+  staleSince: IsoDateTimeSchema,
+});
+
+const DivergentSenderFrontierSchema = SenderFrontierBaseSchema.extend({
+  frontierHealth: z.literal("divergent"),
+});
+
+export const SenderFrontierSchema = z.discriminatedUnion("frontierHealth", [
+  CurrentSenderFrontierSchema,
+  StaleSenderFrontierSchema,
+  DivergentSenderFrontierSchema,
+]);
 
 export type SenderFrontier = z.infer<typeof SenderFrontierSchema>;
 
