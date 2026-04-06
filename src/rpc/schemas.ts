@@ -148,9 +148,3 @@ export const RpcSenderQueueSummarySchema = z.object({
 export type RpcWalletCapacity = z.infer<typeof RpcWalletCapacitySchema>;
 export type RpcPoolState = z.infer<typeof RpcPoolStateSchema>;
 export type RpcSenderQueueSummary = z.infer<typeof RpcSenderQueueSummarySchema>;
-
-export const SubmitPaymentRpcResponseSchema = RpcSubmitPaymentResultSchema;
-export const CheckPaymentRpcResponseSchema = RpcCheckPaymentResultSchema;
-export const WalletCapacityRpcResponseSchema = RpcWalletCapacitySchema;
-export const PoolStateRpcResponseSchema = RpcPoolStateSchema;
-export const SenderQueueSummaryRpcResponseSchema = RpcSenderQueueSummarySchema;
