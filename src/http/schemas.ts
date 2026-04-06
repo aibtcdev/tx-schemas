@@ -41,7 +41,7 @@ export const HTTP_VERIFY_INVALID_REASONS = [
   "recipient_mismatch",
   "amount_insufficient",
   "sender_mismatch",
-] as const;
+] as const satisfies readonly (typeof HTTP_SETTLE_ERROR_REASONS)[number][];
 
 export const HttpVerifyInvalidReasonSchema = z.enum(HTTP_VERIFY_INVALID_REASONS);
 
@@ -216,3 +216,6 @@ export const HttpNonceStateResponseSchema = z.object({
 });
 
 export type HttpNonceStateResponse = z.infer<typeof HttpNonceStateResponseSchema>;
+
+/** @deprecated Use HttpPaymentStatusResponseSchema instead */
+export const PaymentStatusHttpResponseSchema = HttpPaymentStatusResponseSchema;
