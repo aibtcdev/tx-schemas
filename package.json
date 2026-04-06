@@ -1,6 +1,6 @@
 {
   "name": "@aibtc/tx-schemas",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Shared zod schemas for AIBTC transaction states, internal relay schemas, and external x402 payment schemas.",
   "type": "module",
   "sideEffects": false,
