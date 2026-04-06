@@ -32,6 +32,19 @@ export const HTTP_SETTLE_ERROR_REASONS = [
 
 export const HttpSettleErrorReasonSchema = z.enum(HTTP_SETTLE_ERROR_REASONS);
 
+export const HTTP_VERIFY_INVALID_REASONS = [
+  "invalid_payload",
+  "invalid_payment_requirements",
+  "invalid_network",
+  "unrecognized_asset",
+  "invalid_transaction_state",
+  "recipient_mismatch",
+  "amount_insufficient",
+  "sender_mismatch",
+] as const satisfies readonly (typeof HTTP_SETTLE_ERROR_REASONS)[number][];
+
+export const HttpVerifyInvalidReasonSchema = z.enum(HTTP_VERIFY_INVALID_REASONS);
+
 export const HttpPaymentIdentifierExtensionSchema = z.object({
   info: z.object({
     id: PaymentIdSchema,
@@ -145,18 +158,7 @@ export const HttpSettleResponseSchema = z.discriminatedUnion("success", [
 
 export const HttpVerifyResponseSchema = z.object({
   isValid: z.boolean(),
-  invalidReason: z
-    .enum([
-      "invalid_payload",
-      "invalid_payment_requirements",
-      "invalid_network",
-      "unrecognized_asset",
-      "invalid_transaction_state",
-      "recipient_mismatch",
-      "amount_insufficient",
-      "sender_mismatch",
-    ])
-    .optional(),
+  invalidReason: HttpVerifyInvalidReasonSchema.optional(),
   payer: StacksAddressSchema.optional(),
   extensions: z.record(z.string(), z.unknown()).optional(),
 });
@@ -215,9 +217,5 @@ export const HttpNonceStateResponseSchema = z.object({
 
 export type HttpNonceStateResponse = z.infer<typeof HttpNonceStateResponseSchema>;
 
-export const SettleHttpRequestSchema = HttpSettleRequestSchema;
-export const SettleHttpResponseSchema = HttpSettleResponseSchema;
-export const VerifyHttpResponseSchema = HttpVerifyResponseSchema;
-export const SupportedHttpResponseSchema = HttpSupportedResponseSchema;
+/** @deprecated Use HttpPaymentStatusResponseSchema instead */
 export const PaymentStatusHttpResponseSchema = HttpPaymentStatusResponseSchema;
-export const NonceStateHttpResponseSchema = HttpNonceStateResponseSchema;
