@@ -7,7 +7,7 @@ import { z } from "zod";
  */
 export const BriefSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Expected a YYYY-MM-DD date string"),
-  text: z.string(),
+  text: z.string().min(1, "brief text must not be empty"),
   json_data: z.string().nullable(),
   compiled_at: z.string().datetime({ offset: true }),
   inscribed_txid: z.string().nullable(),

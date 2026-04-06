@@ -350,6 +350,19 @@ describe("news brief schema", () => {
     ).toBe(false);
   });
 
+  it("BriefSchema rejects empty text", () => {
+    expect(
+      BriefSchema.safeParse({
+        date: "2026-04-06",
+        text: "",
+        json_data: null,
+        compiled_at: VALID_DATETIME,
+        inscribed_txid: null,
+        inscription_id: null,
+      }).success,
+    ).toBe(false);
+  });
+
   it("BriefSchema rejects non-date string", () => {
     expect(
       BriefSchema.safeParse({
