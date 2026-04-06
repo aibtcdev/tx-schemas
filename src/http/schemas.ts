@@ -3,6 +3,7 @@ import { TrackedPaymentStateSchema } from "../core/enums.js";
 import { TerminalReasonSchema } from "../core/terminal-reasons.js";
 import {
   AmountStringSchema,
+  IsoDateTimeSchema,
   NonNegativeIntegerSchema,
   PaymentIdSchema,
   PositiveIntegerSchema,
@@ -11,6 +12,8 @@ import {
   TransactionIdSchema,
   UrlSchema,
 } from "../core/primitives.js";
+import { SponsorPoolStateSchema } from "../core/wallet-capacity.js";
+import { SenderQueueStateSchema } from "../core/sender-queue.js";
 
 export const HTTP_SETTLE_ERROR_REASONS = [
   "invalid_payload",
@@ -199,8 +202,22 @@ export type HttpSupportedResponse = z.infer<typeof HttpSupportedResponseSchema>;
 export type HttpPaymentStatusResponse = z.infer<typeof HttpPaymentStatusResponseSchema>;
 export type HttpErrorResponse = z.infer<typeof HttpErrorResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// HTTP nonce state response — replaces ad-hoc OpenAPI spec in relay
+// ---------------------------------------------------------------------------
+
+export const HttpNonceStateResponseSchema = z.object({
+  timestamp: IsoDateTimeSchema,
+  pool: SponsorPoolStateSchema,
+  senderQueues: z.array(SenderQueueStateSchema),
+  healInProgress: z.boolean(),
+});
+
+export type HttpNonceStateResponse = z.infer<typeof HttpNonceStateResponseSchema>;
+
 export const SettleHttpRequestSchema = HttpSettleRequestSchema;
 export const SettleHttpResponseSchema = HttpSettleResponseSchema;
 export const VerifyHttpResponseSchema = HttpVerifyResponseSchema;
 export const SupportedHttpResponseSchema = HttpSupportedResponseSchema;
 export const PaymentStatusHttpResponseSchema = HttpPaymentStatusResponseSchema;
+export const NonceStateHttpResponseSchema = HttpNonceStateResponseSchema;

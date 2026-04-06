@@ -3,6 +3,7 @@ import { InFlightPaymentStateSchema, TrackedPaymentStateSchema } from "../core/e
 import { TerminalReasonSchema } from "../core/terminal-reasons.js";
 import {
   AmountStringSchema,
+  IsoDateTimeSchema,
   NonNegativeIntegerSchema,
   PaymentIdSchema,
   PositiveIntegerSchema,
@@ -11,6 +12,8 @@ import {
   TransactionIdSchema,
   UrlSchema,
 } from "../core/primitives.js";
+import { SponsorPoolStateSchema, WalletCapacitySchema } from "../core/wallet-capacity.js";
+import { SenderQueueStateSchema } from "../core/sender-queue.js";
 
 export const RPC_ERROR_CODES = [
   "INVALID_TRANSACTION",
@@ -29,6 +32,11 @@ export const RPC_ERROR_CODES = [
   "CLIENT_NONCE_CONFLICT",
   "CLIENT_BAD_NONCE",
   "TOO_MUCH_CHAINING",
+  "SPONSOR_EXHAUSTED",
+  "ORIGIN_CHAINING_LIMIT",
+  "BROADCAST_RATE_LIMITED",
+  "SENDER_HAND_EXPIRED",
+  "NONCE_OCCUPIED",
 ] as const;
 
 export const RpcErrorCodeSchema = z.enum(RPC_ERROR_CODES);
@@ -115,5 +123,34 @@ export type RpcSubmitPaymentResult = z.infer<typeof RpcSubmitPaymentResultSchema
 export type RpcCheckPaymentRequest = z.infer<typeof RpcCheckPaymentRequestSchema>;
 export type RpcCheckPaymentResult = z.infer<typeof RpcCheckPaymentResultSchema>;
 
+// ---------------------------------------------------------------------------
+// RPC wallet diagnostics — transport wrappers for Phase 4 core schemas
+// ---------------------------------------------------------------------------
+
+export const RpcWalletCapacitySchema = z.object({
+  requestId: z.string().min(1),
+  timestamp: IsoDateTimeSchema,
+  wallet: WalletCapacitySchema,
+});
+
+export const RpcPoolStateSchema = z.object({
+  requestId: z.string().min(1),
+  timestamp: IsoDateTimeSchema,
+  pool: SponsorPoolStateSchema,
+});
+
+export const RpcSenderQueueSummarySchema = z.object({
+  requestId: z.string().min(1),
+  timestamp: IsoDateTimeSchema,
+  senderQueue: SenderQueueStateSchema,
+});
+
+export type RpcWalletCapacity = z.infer<typeof RpcWalletCapacitySchema>;
+export type RpcPoolState = z.infer<typeof RpcPoolStateSchema>;
+export type RpcSenderQueueSummary = z.infer<typeof RpcSenderQueueSummarySchema>;
+
 export const SubmitPaymentRpcResponseSchema = RpcSubmitPaymentResultSchema;
 export const CheckPaymentRpcResponseSchema = RpcCheckPaymentResultSchema;
+export const WalletCapacityRpcResponseSchema = RpcWalletCapacitySchema;
+export const PoolStateRpcResponseSchema = RpcPoolStateSchema;
+export const SenderQueueSummaryRpcResponseSchema = RpcSenderQueueSummarySchema;
