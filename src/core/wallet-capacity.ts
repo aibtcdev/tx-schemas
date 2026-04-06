@@ -10,14 +10,24 @@ import {
 // Occupied nonce — per-nonce conflict tracking (replaces ghost_degraded)
 // ---------------------------------------------------------------------------
 
-export const OccupiedNonceSchema = z.object({
-  nonce: NonNegativeIntegerSchema,
-  conflictedAt: IsoDateTimeSchema,
-  occupantVisible: z.boolean(),
-  rbfAttempts: NonNegativeIntegerSchema,
-  maxRbfAttempts: NonNegativeIntegerSchema,
-  abandonAfter: IsoDateTimeSchema,
-});
+export const OccupiedNonceSchema = z
+  .object({
+    nonce: NonNegativeIntegerSchema,
+    conflictedAt: IsoDateTimeSchema,
+    occupantVisible: z.boolean(),
+    rbfAttempts: NonNegativeIntegerSchema,
+    maxRbfAttempts: NonNegativeIntegerSchema,
+    abandonAfter: IsoDateTimeSchema,
+  })
+  .superRefine((value, ctx) => {
+    if (value.rbfAttempts > value.maxRbfAttempts) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["rbfAttempts"],
+        message: `rbfAttempts must be less than or equal to maxRbfAttempts (${value.maxRbfAttempts})`,
+      });
+    }
+  });
 
 export type OccupiedNonce = z.infer<typeof OccupiedNonceSchema>;
 
@@ -61,6 +71,15 @@ export const WalletCapacitySchema = z
         code: z.ZodIssueCode.custom,
         path: ["available"],
         message: `available must equal chainingLimit - inFlightCount (${expectedAvailable})`,
+      });
+    }
+
+    const nonceSet = new Set(value.occupiedNonces.map((n) => n.nonce));
+    if (nonceSet.size !== value.occupiedNonces.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["occupiedNonces"],
+        message: "occupiedNonces must not contain duplicate nonce values",
       });
     }
   });

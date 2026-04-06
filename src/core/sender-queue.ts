@@ -46,13 +46,23 @@ export type SenderFrontier = z.infer<typeof SenderFrontierSchema>;
 
 const QUEUE_ENTRY_STATES = ["held", "ready", "dispatching", "expired"] as const;
 
-export const SenderQueueEntrySchema = z.object({
-  senderNonce: NonNegativeIntegerSchema,
-  insertedAt: IsoDateTimeSchema,
-  expiresAt: IsoDateTimeSchema,
-  state: z.enum(QUEUE_ENTRY_STATES),
-  expiryNotified: z.boolean(),
-});
+export const SenderQueueEntrySchema = z
+  .object({
+    senderNonce: NonNegativeIntegerSchema,
+    insertedAt: IsoDateTimeSchema,
+    expiresAt: IsoDateTimeSchema,
+    state: z.enum(QUEUE_ENTRY_STATES),
+    expiryNotified: z.boolean(),
+  })
+  .superRefine((entry, ctx) => {
+    if (entry.expiresAt <= entry.insertedAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["expiresAt"],
+        message: "expiresAt must be after insertedAt",
+      });
+    }
+  });
 
 export type SenderQueueEntry = z.infer<typeof SenderQueueEntrySchema>;
 
