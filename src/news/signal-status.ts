@@ -39,13 +39,19 @@ export const REVIEW_OUTCOME_STATUSES = [
  * Valid state transitions for the signal editorial pipeline.
  * "replaced" means editorial displacement — an active choice to swap
  * a better signal in under the daily cap. It is not compile overflow.
+ *
+ * submitted  → approved (slot open or swap) | rejected (feedback required)
+ * approved   → replaced (displaced by better signal) | rejected (reviewer rejects) | brief_included (compile)
+ * replaced   → approved (reconsidered) | rejected (reviewer rejects)
+ * rejected   → approved (reconsidered, slot open or swap)
+ * brief_included → replaced | rejected (publisher retract, pre-inscription only)
  */
 export const SIGNAL_VALID_TRANSITIONS = {
-  submitted: ["approved", "rejected", "replaced"] as const,
-  approved: ["brief_included", "replaced"] as const,
-  replaced: [] as const,
-  rejected: [] as const,
-  brief_included: [] as const,
+  submitted: ["approved", "rejected"] as const,
+  approved: ["replaced", "rejected", "brief_included"] as const,
+  replaced: ["approved", "rejected"] as const,
+  rejected: ["approved"] as const,
+  brief_included: ["replaced", "rejected"] as const,
 } as const satisfies Record<
   (typeof SIGNAL_STATUSES)[number],
   readonly (typeof SIGNAL_STATUSES)[number][]
