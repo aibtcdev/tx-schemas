@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.5.1...tx-schemas-v0.5.2) (2026-04-07)
+
+
+### Bug Fixes
+
+* **news:** align beat-editor and editor-earning schemas to actual DB shape ([#14](https://github.com/aibtcdev/tx-schemas/issues/14)) ([57c1f34](https://github.com/aibtcdev/tx-schemas/commit/57c1f3461ba06057202e0daf07895a38396d5889))
+
 ## [0.5.1](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.5.0...tx-schemas-v0.5.1) (2026-04-06)
 
 
