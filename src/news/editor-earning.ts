@@ -7,7 +7,9 @@ import { z } from "zod";
  * determined by the beat's `editor_review_rate_sats` configuration.
  *
  * Stored in the shared earnings table alongside correspondent earnings.
- * reason is encoded as "editor_inclusion:{beat_slug}" to distinguish them.
+ * reason is free-form at the schema level; the compile job currently writes
+ * "editor_inclusion:{beat_slug}" but the format is not enforced here so
+ * older records or future conventions are still valid.
  * reference_id holds the signal_id for the included signal.
  * payout_txid is set by the Publisher after sending the sBTC payout.
  */
