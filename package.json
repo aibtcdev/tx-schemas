@@ -1,6 +1,6 @@
 {
   "name": "@aibtc/tx-schemas",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Shared zod schemas for AIBTC transaction states, relay RPC/HTTP schemas, and news editorial domain schemas.",
   "type": "module",
   "sideEffects": false,
