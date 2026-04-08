@@ -15,6 +15,7 @@ npm install @aibtc/tx-schemas zod
 - `@aibtc/tx-schemas/core` exports canonical payment enums, terminal reasons, and shared primitives
 - `@aibtc/tx-schemas/rpc` exports internal relay service-binding schemas
 - `@aibtc/tx-schemas/http` exports external x402 facilitator and polling schemas
+- `@aibtc/tx-schemas/news` exports shared editorial/newsroom schemas, including beat lifecycle transition contracts
 
 ## Usage
 
@@ -60,6 +61,7 @@ const settleRequest = HttpSettleRequestSchema.parse({
 - `@aibtc/tx-schemas/core/terminal-reasons`
 - `@aibtc/tx-schemas/rpc`
 - `@aibtc/tx-schemas/http`
+- `@aibtc/tx-schemas/news`
 
 ## Schema Rules
 
