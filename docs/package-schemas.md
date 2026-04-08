@@ -11,6 +11,7 @@
 - `@aibtc/tx-schemas/terminal-reasons` exports terminal-reason enums and mappings.
 - `@aibtc/tx-schemas/rpc` exports internal first-party RPC schemas.
 - `@aibtc/tx-schemas/http` exports external HTTP schemas.
+- `@aibtc/tx-schemas/news` exports shared newsroom/editorial schemas, including beat lifecycle transition primitives.
 
 ## Naming Rules
 
@@ -26,6 +27,7 @@ This keeps domain semantics stable even when transports choose different field n
 - `src/core` owns canonical semantics only.
 - `src/rpc` owns first-party service-binding request and response shapes.
 - `src/http` owns x402/HTTP request and response shapes plus polling/error envelopes.
+- `src/news` owns shared editorial/newsroom domain schemas used across news services.
 
 RPC and HTTP may differ in field names, envelopes, and transport-specific error codes.
 
