@@ -19,8 +19,20 @@ import {
   SourceSchema,
   BriefSchema,
   BeatSchema,
+  BeatWithLifecycleSchema,
   BeatClaimSchema,
   BeatMemberSchema,
+  BEAT_LIFECYCLE_STATES,
+  BeatLifecycleStateSchema,
+  BeatTransitionMetadataSchema,
+  BeatLifecycleFlagsSchema,
+  BeatLifecycleMetadataSchema,
+  BEAT_TRANSITION_RESPONSE_CODES,
+  BeatTransitionResponseCodeSchema,
+  BeatSelfHealingGuidanceSchema,
+  BeatGracePeriodSuccessSchema,
+  BeatGracePeriodSuccessEnvelopeSchema,
+  BeatRetiredActionErrorSchema,
 } from "../src/news/index.js";
 
 const VALID_DATETIME = "2026-04-06T12:00:00Z";
@@ -332,9 +344,36 @@ describe("news beat schema", () => {
     daily_approved_limit: null,
     editor_review_rate_sats: null,
   };
+  const validLifecycleMetadata = {
+    lifecycle: "grace" as const,
+    is_fileable: true,
+    is_listed_active: false,
+    is_assignable_editor: false,
+    archive_only: false,
+    replacement_beats: ["aibtc-network", "bitcoin-macro", "quantum"],
+    transition_started_at: VALID_DATETIME,
+    transition_effective_at: VALID_DATETIME,
+    transition_message: "This beat is retiring soon.",
+    transition_docs_url: "https://example.com/docs/aibtc-news-cutover",
+  };
 
   it("BeatSchema accepts valid beat with nullable limits", () => {
     expect(BeatSchema.safeParse(validBeat).success).toBe(true);
+  });
+
+  it("BeatSchema remains backward compatible when lifecycle metadata is omitted", () => {
+    expect(BeatSchema.safeParse(validBeat).success).toBe(true);
+  });
+
+  it("BeatSchema accepts beat with lifecycle metadata when present", () => {
+    expect(BeatSchema.safeParse({ ...validBeat, ...validLifecycleMetadata }).success).toBe(true);
+  });
+
+  it("BeatWithLifecycleSchema requires explicit lifecycle metadata", () => {
+    expect(BeatWithLifecycleSchema.safeParse(validBeat).success).toBe(false);
+    expect(BeatWithLifecycleSchema.safeParse({ ...validBeat, ...validLifecycleMetadata }).success).toBe(
+      true,
+    );
   });
 
   it("BeatSchema accepts beat with daily_approved_limit set", () => {
@@ -348,6 +387,129 @@ describe("news beat schema", () => {
   it("BeatSchema rejects non-positive daily_approved_limit", () => {
     expect(BeatSchema.safeParse({ ...validBeat, daily_approved_limit: 0 }).success).toBe(false);
     expect(BeatSchema.safeParse({ ...validBeat, daily_approved_limit: -1 }).success).toBe(false);
+  });
+
+  it("Beat lifecycle states include active, grace, retired", () => {
+    expect([...BEAT_LIFECYCLE_STATES]).toEqual(["active", "grace", "retired"]);
+    expect(BeatLifecycleStateSchema.safeParse("retired").success).toBe(true);
+    expect(BeatLifecycleStateSchema.safeParse("inactive").success).toBe(false);
+  });
+
+  it("BeatTransitionMetadataSchema accepts nullable transition timestamps and docs url", () => {
+    expect(
+      BeatTransitionMetadataSchema.safeParse({
+        replacement_beats: [],
+        transition_started_at: null,
+        transition_effective_at: null,
+        transition_message: null,
+        transition_docs_url: null,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("BeatLifecycleFlagsSchema requires machine-readable lifecycle booleans", () => {
+    expect(
+      BeatLifecycleFlagsSchema.safeParse({
+        lifecycle: "active",
+        is_fileable: true,
+        is_listed_active: true,
+        is_assignable_editor: true,
+        archive_only: false,
+      }).success,
+    ).toBe(true);
+
+    expect(
+      BeatLifecycleFlagsSchema.safeParse({
+        lifecycle: "active",
+        is_fileable: true,
+        is_listed_active: true,
+        is_assignable_editor: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("BeatLifecycleMetadataSchema combines lifecycle flags and transition metadata", () => {
+    expect(BeatLifecycleMetadataSchema.safeParse(validLifecycleMetadata).success).toBe(true);
+  });
+
+  it("Beat transition response codes are stable", () => {
+    expect([...BEAT_TRANSITION_RESPONSE_CODES]).toEqual(["beat_transition_grace", "beat_retired"]);
+    expect(BeatTransitionResponseCodeSchema.safeParse("beat_transition_grace").success).toBe(true);
+    expect(BeatTransitionResponseCodeSchema.safeParse("unknown").success).toBe(false);
+  });
+
+  it("BeatSelfHealingGuidanceSchema accepts reusable response guidance", () => {
+    expect(
+      BeatSelfHealingGuidanceSchema.safeParse({
+        replacement_beats: ["bitcoin-macro"],
+        transition_started_at: VALID_DATETIME,
+        transition_effective_at: VALID_DATETIME,
+        docs_url: "https://example.com/docs/aibtc-news-cutover",
+        message_for_agent: "Choose an active beat and retry.",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("BeatGracePeriodSuccessSchema accepts grace-period success metadata", () => {
+    expect(
+      BeatGracePeriodSuccessSchema.safeParse({
+        code: "beat_transition_grace",
+        beat_lifecycle: "grace",
+        replacement_beats: ["bitcoin-macro"],
+        transition_started_at: VALID_DATETIME,
+        transition_effective_at: VALID_DATETIME,
+        docs_url: "https://example.com/docs/aibtc-news-cutover",
+        message_for_agent: "This beat is retiring soon. Refile future work under an active beat.",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("BeatGracePeriodSuccessEnvelopeSchema accepts the nested transition block contract", () => {
+    expect(
+      BeatGracePeriodSuccessEnvelopeSchema.safeParse({
+        transition: {
+          code: "beat_transition_grace",
+          beat_lifecycle: "grace",
+          replacement_beats: ["bitcoin-macro"],
+          transition_started_at: VALID_DATETIME,
+          transition_effective_at: VALID_DATETIME,
+          docs_url: "https://example.com/docs/aibtc-news-cutover",
+          message_for_agent: "This beat is retiring soon. Refile future work under an active beat.",
+        },
+      }).success,
+    ).toBe(true);
+  });
+
+  it("BeatRetiredActionErrorSchema accepts machine-readable retired-beat errors", () => {
+    expect(
+      BeatRetiredActionErrorSchema.safeParse({
+        error: 'Beat "legacy-slug" is retired and no longer accepts new filings',
+        code: "beat_retired",
+        beat_lifecycle: "retired",
+        archive_only: true,
+        replacement_beats: ["quantum"],
+        transition_started_at: VALID_DATETIME,
+        transition_effective_at: VALID_DATETIME,
+        docs_url: "https://example.com/docs/aibtc-news-cutover",
+        message_for_agent: "This beat is archive-only. Choose an active beat and retry.",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("BeatRetiredActionErrorSchema rejects archive_only=false", () => {
+    expect(
+      BeatRetiredActionErrorSchema.safeParse({
+        error: 'Beat "legacy-slug" is retired and no longer accepts new filings',
+        code: "beat_retired",
+        beat_lifecycle: "retired",
+        archive_only: false,
+        replacement_beats: ["quantum"],
+        transition_started_at: VALID_DATETIME,
+        transition_effective_at: VALID_DATETIME,
+        docs_url: "https://example.com/docs/aibtc-news-cutover",
+        message_for_agent: "This beat is archive-only. Choose an active beat and retry.",
+      }).success,
+    ).toBe(false);
   });
 
   it("BeatClaimSchema accepts valid claim", () => {
