@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.5.2...tx-schemas-v0.6.0) (2026-04-08)
+
+
+### Features
+
+* **news:** document news schema exports and lifecycle contract ([1f9a973](https://github.com/aibtcdev/tx-schemas/commit/1f9a97334e2b67727ddd53cd6484e376f57a50ec))
+
 ## [0.5.2](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.5.1...tx-schemas-v0.5.2) (2026-04-07)
 
 
