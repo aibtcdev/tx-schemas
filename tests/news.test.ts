@@ -361,8 +361,20 @@ describe("news beat schema", () => {
     expect(BeatSchema.safeParse(validBeat).success).toBe(true);
   });
 
-  it("BeatSchema remains backward compatible when lifecycle metadata is omitted", () => {
-    expect(BeatSchema.safeParse(validBeat).success).toBe(true);
+  it("BeatSchema rejects partial lifecycle metadata to avoid ambiguous states", () => {
+    expect(
+      BeatSchema.safeParse({
+        ...validBeat,
+        lifecycle: validLifecycleMetadata.lifecycle,
+        is_fileable: validLifecycleMetadata.is_fileable,
+      }).success,
+    ).toBe(false);
+    expect(
+      BeatSchema.safeParse({
+        ...validBeat,
+        transition_started_at: validLifecycleMetadata.transition_started_at,
+      }).success,
+    ).toBe(false);
   });
 
   it("BeatSchema accepts beat with lifecycle metadata when present", () => {

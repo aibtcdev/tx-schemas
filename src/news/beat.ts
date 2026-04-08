@@ -25,6 +25,19 @@ export const BeatLifecycleMetadataSchema = BeatLifecycleFlagsSchema.extend(
   BeatTransitionMetadataSchema.shape,
 );
 
+const BEAT_LIFECYCLE_METADATA_KEYS = [
+  "lifecycle",
+  "is_fileable",
+  "is_listed_active",
+  "is_assignable_editor",
+  "archive_only",
+  "replacement_beats",
+  "transition_started_at",
+  "transition_effective_at",
+  "transition_message",
+  "transition_docs_url",
+] as const satisfies readonly (keyof z.infer<typeof BeatLifecycleMetadataSchema>)[];
+
 const BeatBaseSchema = z.object({
   slug: z.string().min(1),
   name: z.string().min(1),
@@ -38,21 +51,39 @@ const BeatBaseSchema = z.object({
 });
 
 /**
- * A named topic beat for news signals.
- * daily_approved_limit caps the number of approved signals per day (null = unlimited).
- * editor_review_rate_sats is the per-review payment rate for the beat editor (null = not configured).
- */
-export const BeatSchema = BeatBaseSchema.extend(BeatLifecycleMetadataSchema.partial().shape);
-
-/**
  * A beat record with explicit lifecycle metadata for active/grace/retired flows.
  */
 export const BeatWithLifecycleSchema = BeatBaseSchema.extend(BeatLifecycleMetadataSchema.shape);
+
+/**
+ * A named topic beat for news signals.
+ * daily_approved_limit caps the number of approved signals per day (null = unlimited).
+ * editor_review_rate_sats is the per-review payment rate for the beat editor (null = not configured).
+ *
+ * Lifecycle metadata is all-or-nothing to avoid ambiguous partial states in downstream consumers.
+ */
+export const BeatSchema = BeatBaseSchema.extend(BeatLifecycleMetadataSchema.partial().shape).superRefine(
+  (beat, ctx) => {
+    const presentKeys = BEAT_LIFECYCLE_METADATA_KEYS.filter((key) => key in beat);
+    if (presentKeys.length > 0 && presentKeys.length < BEAT_LIFECYCLE_METADATA_KEYS.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "Lifecycle metadata must be omitted entirely or provided as a complete set of lifecycle fields.",
+      });
+    }
+  },
+);
 
 export const BEAT_TRANSITION_RESPONSE_CODES = ["beat_transition_grace", "beat_retired"] as const;
 
 export const BeatTransitionResponseCodeSchema = z.enum(BEAT_TRANSITION_RESPONSE_CODES);
 
+/**
+ * Response payload guidance intentionally uses `docs_url` / `message_for_agent`
+ * while persisted beat lifecycle metadata uses `transition_docs_url` / `transition_message`.
+ * The Phase 3 cutover contract distinguishes record fields from response fields.
+ */
 export const BeatSelfHealingGuidanceSchema = z.object({
   replacement_beats: z.array(z.string().min(1)),
   transition_started_at: IsoDateTimeSchema.nullable(),
@@ -64,14 +95,9 @@ export const BeatSelfHealingGuidanceSchema = z.object({
 /**
  * Structured success metadata for filing during a grace-period beat transition.
  */
-export const BeatGracePeriodSuccessSchema = z.object({
+export const BeatGracePeriodSuccessSchema = BeatSelfHealingGuidanceSchema.extend({
   code: z.literal("beat_transition_grace"),
   beat_lifecycle: z.literal("grace"),
-  replacement_beats: BeatSelfHealingGuidanceSchema.shape.replacement_beats,
-  transition_started_at: BeatSelfHealingGuidanceSchema.shape.transition_started_at,
-  transition_effective_at: BeatSelfHealingGuidanceSchema.shape.transition_effective_at,
-  docs_url: BeatSelfHealingGuidanceSchema.shape.docs_url,
-  message_for_agent: BeatSelfHealingGuidanceSchema.shape.message_for_agent,
 });
 
 /**
@@ -84,16 +110,11 @@ export const BeatGracePeriodSuccessEnvelopeSchema = z.object({
 /**
  * Machine-readable rejection contract for retired-beat filing/join attempts.
  */
-export const BeatRetiredActionErrorSchema = z.object({
+export const BeatRetiredActionErrorSchema = BeatSelfHealingGuidanceSchema.extend({
   error: z.string().min(1),
   code: z.literal("beat_retired"),
   beat_lifecycle: z.literal("retired"),
   archive_only: z.literal(true),
-  replacement_beats: BeatSelfHealingGuidanceSchema.shape.replacement_beats,
-  transition_started_at: BeatSelfHealingGuidanceSchema.shape.transition_started_at,
-  transition_effective_at: BeatSelfHealingGuidanceSchema.shape.transition_effective_at,
-  docs_url: BeatSelfHealingGuidanceSchema.shape.docs_url,
-  message_for_agent: BeatSelfHealingGuidanceSchema.shape.message_for_agent,
 });
 
 /**
