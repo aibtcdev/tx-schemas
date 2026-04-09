@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  CANONICAL_POLLING_IDENTITY_FIELDS,
   HttpPaymentStatusResponseSchema,
   PAYMENT_STATE_DEFAULT_DELIVERY,
   PAYMENT_STATE_TO_CATEGORY,
   RpcCheckPaymentResultSchema,
+  TERMINAL_REASON_CATEGORY_HANDLING,
+  TERMINAL_REASON_TO_STATE,
 } from "../src/index.js";
 
 describe("rpc/http semantic parity", () => {
@@ -48,5 +51,28 @@ describe("rpc/http semantic parity", () => {
     expect(PAYMENT_STATE_DEFAULT_DELIVERY[rpc.status]).toBe(false);
     expect(PAYMENT_STATE_DEFAULT_DELIVERY[http.status]).toBe(false);
     expect(rpc.terminalReason).toBe(http.terminalReason);
+  });
+
+  it("keeps canonical not_found identity-gone semantics aligned across rpc and http", () => {
+    const rpc = RpcCheckPaymentResultSchema.parse({
+      paymentId: "pay_1234567890abcdef",
+      status: "not_found",
+      terminalReason: "unknown_payment_identity",
+      error: "Payment identity is gone",
+    });
+
+    const http = HttpPaymentStatusResponseSchema.parse({
+      paymentId: "pay_1234567890abcdef",
+      status: "not_found",
+      terminalReason: "unknown_payment_identity",
+      error: "Payment identity is gone",
+    });
+
+    expect(TERMINAL_REASON_TO_STATE[rpc.terminalReason!]).toBe("not_found");
+    expect(TERMINAL_REASON_TO_STATE[http.terminalReason!]).toBe("not_found");
+    expect(TERMINAL_REASON_CATEGORY_HANDLING.identity.clientAction).toBe(
+      "restart-higher-level-flow-with-new-payment-identity",
+    );
+    expect(CANONICAL_POLLING_IDENTITY_FIELDS).toEqual(["paymentId", "checkStatusUrl"]);
   });
 });

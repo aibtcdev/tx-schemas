@@ -97,6 +97,46 @@ export const TERMINAL_REASON_TO_CATEGORY = {
 
 export const paymentTerminalReasonCategoryByReason = TERMINAL_REASON_TO_CATEGORY;
 
+export const TERMINAL_REASON_CATEGORY_HANDLING = {
+  validation: {
+    recoveryOwner: "sender",
+    clientAction: "stop-and-fix-input",
+    guidance: "Fix the request or signed transaction before retrying.",
+  },
+  sender: {
+    recoveryOwner: "sender",
+    clientAction: "rebuild-signed-payment",
+    guidance: "Build and sign a new payment after correcting sender nonce state.",
+  },
+  relay: {
+    recoveryOwner: "relay",
+    clientAction: "bounded-retry-same-payment",
+    guidance: "Retry only with bounded relay-owned recovery against the same paymentId.",
+  },
+  settlement: {
+    recoveryOwner: "relay",
+    clientAction: "bounded-retry-same-payment",
+    guidance: "Treat broadcast and settlement failures as relay-owned recovery on the same paymentId unless sender repair is explicitly required.",
+  },
+  replacement: {
+    recoveryOwner: "caller",
+    clientAction: "stop-polling-old-paymentId",
+    guidance: "The old paymentId is terminal; stop polling it and decide the next action explicitly.",
+  },
+  identity: {
+    recoveryOwner: "caller",
+    clientAction: "restart-higher-level-flow-with-new-payment-identity",
+    guidance: "The old identity is gone; restart the higher-level flow and never synthesize a replacement paymentId.",
+  },
+} as const satisfies Record<
+  (typeof TERMINAL_REASON_CATEGORIES)[number],
+  {
+    recoveryOwner: string;
+    clientAction: string;
+    guidance: string;
+  }
+>;
+
 export const TerminalReasonDetailSchema = z.object({
   reason: TerminalReasonSchema,
   category: TerminalReasonCategorySchema,
