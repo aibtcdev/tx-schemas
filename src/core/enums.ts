@@ -82,6 +82,8 @@ export const CANONICAL_POLLING_IDENTITY_FIELDS = [
   "checkStatusUrl",
 ] as const;
 
+// Array order is part of the contract: downstream consumers may rely on this
+// sequence as the required relay lifecycle bridge from acceptance to terminality.
 export const RELAY_LIFECYCLE_BRIDGE = [
   {
     step: "sender_hand_accepted",
@@ -145,6 +147,7 @@ export const CanonicalDomainBoundary = {
     canonicalFields: CANONICAL_POLLING_IDENTITY_FIELDS,
     missingCanonicalIdentityPolicy: "downstream-must-not-invent-paymentId-or-checkStatusUrl",
   },
+  relayLifecycleBridgeOrdering: "ordered-transition-sequence",
   relayLifecycleBridge: RELAY_LIFECYCLE_BRIDGE,
   recoveryBoundaries: {
     senderOwned: [

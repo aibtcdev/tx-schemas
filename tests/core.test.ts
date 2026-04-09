@@ -79,6 +79,9 @@ describe("core payment semantics", () => {
   });
 
   it("freezes the required relay lifecycle bridge ordering", () => {
+    expect(CanonicalDomainBoundary.relayLifecycleBridgeOrdering).toBe(
+      "ordered-transition-sequence",
+    );
     expect(RELAY_LIFECYCLE_BRIDGE.map((step) => step.step)).toEqual([
       "sender_hand_accepted",
       "queued_for_sponsor_dispatch",

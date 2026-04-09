@@ -34,6 +34,8 @@ Notes:
 
 The relay implementation has to keep one canonical `paymentId` attached across this bridge:
 
+The row order below is normative. It is the frozen transition sequence for the relay lifecycle bridge, not a display-only convention.
+
 | Relay step | Caller-facing state projection | Contract |
 | --- | --- | --- |
 | sender-hand accepted | `queued` | relay accepted sender-hand ownership for this `paymentId` |

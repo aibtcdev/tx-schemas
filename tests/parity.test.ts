@@ -75,4 +75,26 @@ describe("rpc/http semantic parity", () => {
     );
     expect(CANONICAL_POLLING_IDENTITY_FIELDS).toEqual(["paymentId", "checkStatusUrl"]);
   });
+
+  it("keeps expired not_found semantics aligned across rpc and http", () => {
+    const rpc = RpcCheckPaymentResultSchema.parse({
+      paymentId: "pay_1234567890abcdef",
+      status: "not_found",
+      terminalReason: "expired",
+      error: "Payment expired",
+    });
+
+    const http = HttpPaymentStatusResponseSchema.parse({
+      paymentId: "pay_1234567890abcdef",
+      status: "not_found",
+      terminalReason: "expired",
+      error: "Payment expired",
+    });
+
+    expect(TERMINAL_REASON_TO_STATE[rpc.terminalReason!]).toBe("not_found");
+    expect(TERMINAL_REASON_TO_STATE[http.terminalReason!]).toBe("not_found");
+    expect(TERMINAL_REASON_CATEGORY_HANDLING.identity.clientAction).toBe(
+      "restart-higher-level-flow-with-new-payment-identity",
+    );
+  });
 });
