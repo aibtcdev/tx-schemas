@@ -91,6 +91,15 @@ Relay-owned responsibilities:
 - `RpcCheckPaymentResult` and `HttpPaymentStatusResponse` may both surface `checkStatusUrl` as an additive canonical poll hint.
 - `terminalReason` is additive and should be emitted wherever relay adapters already know the normalized terminal classification.
 
+## Machine-Readable Contract Exports
+
+Downstream repos should import these constants from `@aibtc/tx-schemas` rather than hardcoding values:
+
+- `CANONICAL_POLLING_IDENTITY_FIELDS` — the only valid fields for polling identity lookup
+- `RELAY_LIFECYCLE_BRIDGE` — frozen ordered transition sequence from acceptance to terminality
+- `TERMINAL_REASON_CATEGORY_HANDLING` — recovery owner and expected client action by terminal reason category
+- `CanonicalDomainBoundary` — domain boundary constants including payment identity, polling identity, and recovery boundaries
+
 ## Migration Order
 
 1. `tx-schemas`: freeze the public contract and publish additive fields.
