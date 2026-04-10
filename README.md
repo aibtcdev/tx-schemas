@@ -72,10 +72,13 @@ const settleRequest = HttpSettleRequestSchema.parse({
 - The default protected-resource delivery invariant is `deliver-only-on-confirmed`.
 - Any product that delivers on in-flight states should document that as an application exception, not a canonical package rule.
 - `paymentId` is relay-owned and duplicate submission should reuse the same `paymentId` until terminal resolution.
+- `payment-identifier` is client-supplied idempotency input only. It must not be treated as canonical public `paymentId`.
 - Accepted duplicate submit responses should return the current caller-facing in-flight status for that `paymentId`: `queued`, `broadcasting`, or `mempool` as applicable.
 - `queued_with_warning` remains an RPC-only temporary compatibility shim for warning-aware callers during migration.
 - Polling contracts may surface `checkStatusUrl` as an additive convenience field, and internal/external polling should treat it as another way to reach the same `paymentId` lifecycle.
+- If a downstream consumer has neither relay `paymentId` nor canonical `checkStatusUrl`, it must fail closed instead of inventing a polling identity.
 - Terminal polling responses should carry a normalized `terminalReason` when one is known, even if transports also emit local error codes.
+- Machine-readable contract exports for downstream repos include `CanonicalDomainBoundary`, `CANONICAL_POLLING_IDENTITY_FIELDS`, `RELAY_LIFECYCLE_BRIDGE`, and `TERMINAL_REASON_CATEGORY_HANDLING`.
 
 More detail lives in [docs/package-schemas.md](docs/package-schemas.md),
 [docs/boring-state-machine-contract.md](docs/boring-state-machine-contract.md),

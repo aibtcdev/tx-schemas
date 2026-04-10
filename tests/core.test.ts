@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  CANONICAL_POLLING_IDENTITY_FIELDS,
   CanonicalDomainBoundary,
   PaymentIdSchema,
   PaymentStateSchema,
   PaymentStateCategoryByState,
   PaymentStatusSchema,
   ProtectedResourceDeliverableStateSchema,
+  RELAY_LIFECYCLE_BRIDGE,
+  TERMINAL_REASON_CATEGORY_HANDLING,
   TerminalReasonSchema,
   TERMINAL_REASON_TO_STATE,
 } from "../src/index.js";
@@ -57,11 +60,52 @@ describe("core payment semantics", () => {
   it("documents relay-owned payment identity and recovery boundaries", () => {
     expect(CanonicalDomainBoundary.paymentIdentity.owner).toBe("relay");
     expect(CanonicalDomainBoundary.paymentIdentity.field).toBe("paymentId");
+    expect(CanonicalDomainBoundary.paymentIdentity.idempotencyInputField).toBe(
+      "payment-identifier",
+    );
+    expect(CanonicalDomainBoundary.paymentIdentity.idempotencyInputRole).toBe(
+      "idempotency-input-only",
+    );
+    expect(CANONICAL_POLLING_IDENTITY_FIELDS).toEqual(["paymentId", "checkStatusUrl"]);
+    expect(CanonicalDomainBoundary.pollingIdentity.missingCanonicalIdentityPolicy).toBe(
+      "downstream-must-not-invent-paymentId-or-checkStatusUrl",
+    );
     expect(CanonicalDomainBoundary.recoveryBoundaries.senderOwned).toContain(
       "transaction rebuild after sender nonce stale/gap",
     );
     expect(CanonicalDomainBoundary.recoveryBoundaries.relayOwned).toContain(
       "payment identity lifecycle",
+    );
+  });
+
+  it("freezes the required relay lifecycle bridge ordering", () => {
+    expect(CanonicalDomainBoundary.relayLifecycleBridgeOrdering).toBe(
+      "ordered-transition-sequence",
+    );
+    expect(RELAY_LIFECYCLE_BRIDGE.map((step) => step.step)).toEqual([
+      "sender_hand_accepted",
+      "queued_for_sponsor_dispatch",
+      "sponsor_broadcasted",
+      "confirmed",
+      "replaced",
+      "terminal_failed",
+    ]);
+    expect(RELAY_LIFECYCLE_BRIDGE[0]?.callerFacingStates).toEqual(["queued"]);
+    expect(RELAY_LIFECYCLE_BRIDGE[2]?.callerFacingStates).toEqual([
+      "broadcasting",
+      "mempool",
+    ]);
+  });
+
+  it("documents client handling guidance by terminal reason category", () => {
+    expect(TERMINAL_REASON_CATEGORY_HANDLING.sender.clientAction).toBe(
+      "rebuild-signed-payment",
+    );
+    expect(TERMINAL_REASON_CATEGORY_HANDLING.relay.clientAction).toBe(
+      "bounded-retry-same-payment",
+    );
+    expect(TERMINAL_REASON_CATEGORY_HANDLING.identity.clientAction).toBe(
+      "restart-higher-level-flow-with-new-payment-identity",
     );
   });
 });

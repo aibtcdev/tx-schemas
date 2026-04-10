@@ -77,6 +77,46 @@ export const paymentStateCategoryByState = PAYMENT_STATE_TO_CATEGORY;
 export const PaymentStateDefaultDeliveryByState = PAYMENT_STATE_DEFAULT_DELIVERY;
 export const paymentStateDefaultDeliveryByState = PAYMENT_STATE_DEFAULT_DELIVERY;
 
+export const CANONICAL_POLLING_IDENTITY_FIELDS = [
+  "paymentId",
+  "checkStatusUrl",
+] as const;
+
+// Array order is part of the contract: downstream consumers may rely on this
+// sequence as the required relay lifecycle bridge from acceptance to terminality.
+export const RELAY_LIFECYCLE_BRIDGE = [
+  {
+    step: "sender_hand_accepted",
+    callerFacingStates: ["queued"] as const,
+    contract: "relay accepted sender-hand ownership for this paymentId",
+  },
+  {
+    step: "queued_for_sponsor_dispatch",
+    callerFacingStates: ["queued"] as const,
+    contract: "relay queued the same paymentId for sponsor dispatch",
+  },
+  {
+    step: "sponsor_broadcasted",
+    callerFacingStates: ["broadcasting", "mempool"] as const,
+    contract: "relay broadcasted the same paymentId and may expose chain visibility",
+  },
+  {
+    step: "confirmed",
+    callerFacingStates: ["confirmed"] as const,
+    contract: "relay observed canonical confirmed settlement for the same paymentId",
+  },
+  {
+    step: "replaced",
+    callerFacingStates: ["replaced"] as const,
+    contract: "relay marked the old paymentId terminal because another tx won the nonce",
+  },
+  {
+    step: "terminal_failed",
+    callerFacingStates: ["failed"] as const,
+    contract: "relay marked the paymentId terminal failed with a normalized terminalReason",
+  },
+] as const;
+
 export const PAYMENT_STATE_TRANSITIONS = {
   requires_payment: [] as const,
   queued: ["queued", "broadcasting", "failed"] as const,
@@ -99,8 +139,16 @@ export const CanonicalDomainBoundary = {
   paymentIdentity: {
     owner: "relay",
     field: "paymentId",
+    idempotencyInputField: "payment-identifier",
+    idempotencyInputRole: "idempotency-input-only",
     duplicateSubmissionPolicy: "same-submission-reuses-paymentId-until-terminal-outcome",
   },
+  pollingIdentity: {
+    canonicalFields: CANONICAL_POLLING_IDENTITY_FIELDS,
+    missingCanonicalIdentityPolicy: "downstream-must-not-invent-paymentId-or-checkStatusUrl",
+  },
+  relayLifecycleBridgeOrdering: "ordered-transition-sequence",
+  relayLifecycleBridge: RELAY_LIFECYCLE_BRIDGE,
   recoveryBoundaries: {
     senderOwned: [
       "sender nonce correctness",
