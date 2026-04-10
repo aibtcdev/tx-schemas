@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.6.0...tx-schemas-v0.7.0) (2026-04-10)
+
+
+### Features
+
+* **core:** document machine-readable contract exports for downstream consumers ([#20](https://github.com/aibtcdev/tx-schemas/issues/20)) ([d5dacca](https://github.com/aibtcdev/tx-schemas/commit/d5dacca448ac63b47a0ba1429e3493392344a9cf))
+
 ## [0.6.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.5.2...tx-schemas-v0.6.0) (2026-04-08)
 
 
