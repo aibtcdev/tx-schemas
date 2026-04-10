@@ -108,7 +108,8 @@ Relay-owned responsibilities:
 | Seen in mempool | `mempool` | | do not deliver by default unless route exception is documented | poll |
 | Confirmed on-chain | `confirmed` | | deliver | success |
 | Sender nonce stale | `failed` | `sender_nonce_stale` | do not deliver | rebuild transaction |
-| Sender nonce gap | `failed` | `sender_nonce_gap` | do not deliver | rebuild or submit missing nonce |
+| Sender nonce gap before canonical acceptance | `failed` | `sender_nonce_gap` | do not deliver | rebuild or submit missing nonce |
+| Accepted payment blocked on sender nonce gap | `queued` | | do not deliver | keep polling the same `paymentId`; use hold or wedge diagnostics to decide whether to submit missing nonces or escalate |
 | Invalid transaction | `failed` | `invalid_transaction` | do not deliver | stop |
 | Sponsor/relay internal failure | `failed` | `queue_unavailable`, `sponsor_failure`, or `internal_error` | do not deliver | bounded retry only if adapter marks retryable |
 | Broadcast failure | `failed` | `broadcast_failure` or `chain_abort` | do not deliver | treat as failed; rebuild only if caller owns sender recovery |
