@@ -153,3 +153,68 @@ const { wallet: next, ledger: nextLedger, adopted, dropped } = reconcile(
 All helpers are pure: inputs → new state. No I/O, and time-sensitive helpers
 accept an injectable `now` option for deterministic tests; otherwise they use
 the current time by default.
+
+### Canonical write pattern: two-phase broadcast
+
+`LedgerEntry.status` captures whether a broadcast has round-tripped with the
+node. The two-phase contract closes the edge-terminator / crash window where a
+single-phase ledger write could claim `broadcast_sent` for a tx the node never
+saw (or lose track of a tx the node did accept).
+
+```
+(no entry)        → pending_broadcast       [beginPendingBroadcast]
+pending_broadcast → broadcast_sent          [resolveBroadcast("sent") | reconcile]
+pending_broadcast → broadcast_failed        [resolveBroadcast("failed")]
+broadcast_sent    → pending_broadcast       [new RBF attempt, new txId]
+broadcast_failed  → pending_broadcast       [retry, new txId]
+```
+
+Write the ledger **before** the network call, resolve on return:
+
+```ts
+import {
+  beginPendingBroadcast,
+  resolveBroadcast,
+  reconcile,
+} from "@aibtc/tx-schemas/core";
+
+let ledger = beginPendingBroadcast(ledger, {
+  nonce,
+  txId,
+  fee,
+});
+
+try {
+  const outcome = await broadcastTransaction(signedTx);
+  ledger = resolveBroadcast(ledger, nonce, "sent", { lastOutcome: outcome });
+} catch (err) {
+  ledger = resolveBroadcast(ledger, nonce, "failed");
+  throw err;
+}
+```
+
+`decideBroadcast` refuses to issue a new decision while the entry is
+`pending_broadcast` — it returns `{ kind: "await_pending_broadcast", nonce,
+txId }` so the consumer resolves the prior call before a second broadcast
+can fire.
+
+`reconcile()` sweeps survivors of crashes that dropped the resolve step:
+
+- A `pending_broadcast` entry whose txId appears in the mempool is promoted
+  to `broadcast_sent` automatically.
+- A `pending_broadcast` entry absent from the mempool within
+  `justBroadcastGraceSeconds` (default 30) is classified as
+  `inFlightPendingIndex` — node may have accepted it; indexer just hasn't
+  caught up.
+- Past the grace window with no mempool hit, the entry is reported as
+  `dropped` for caller inspection.
+
+```ts
+const { ledger: next, adopted, dropped, inFlightPendingIndex } = reconcile(
+  wallet,
+  ledger,
+  mempoolReadByNonce,
+  sponsorAddress,
+  { justBroadcastGraceSeconds: 30 }
+);
+```
