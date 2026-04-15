@@ -14,12 +14,28 @@ import {
 // One entry per (sponsorAddress, nonce). Relays persist this so they can
 // distinguish their own prior broadcast (RBF path) from a foreign occupant
 // (quarantine path) when stacks-core reports a nonce conflict.
+//
+// Lifecycle (two-phase broadcast):
+//   (no entry)        → pending_broadcast       [beginPendingBroadcast]
+//   pending_broadcast → broadcast_sent          [resolveBroadcast / reconcile]
+//   pending_broadcast → broadcast_failed        [resolveBroadcast]
+//   broadcast_sent    → pending_broadcast       [new RBF attempt, new txId]
+//   broadcast_failed  → pending_broadcast       [retry, new txId]
 // ---------------------------------------------------------------------------
+
+export const LedgerEntryStatusSchema = z.enum([
+  "pending_broadcast",
+  "broadcast_sent",
+  "broadcast_failed",
+]);
+
+export type LedgerEntryStatus = z.infer<typeof LedgerEntryStatusSchema>;
 
 export const SponsorLedgerEntrySchema = z.object({
   nonce: NonNegativeIntegerSchema,
   txId: TransactionIdSchema,
   fee: AmountStringSchema,
+  status: LedgerEntryStatusSchema,
   broadcastAt: IsoDateTimeSchema,
   rbfAttempts: NonNegativeIntegerSchema,
   lastOutcome: NodeBroadcastOutcomeSchema.optional(),

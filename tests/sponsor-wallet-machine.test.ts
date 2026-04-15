@@ -1,19 +1,23 @@
 import { describe, expect, it } from "vitest";
 import {
   adoptOrphan,
+  beginPendingBroadcast,
   BroadcastDecisionSchema,
   classifyOccupant,
   decideBroadcast,
   HiroSponsorTxViewSchema,
+  LedgerTransitionError,
   MAX_RBF_ATTEMPTS,
   OccupantClassificationSchema,
   quarantine,
   RELAY_CHAINING_LIMIT,
   reconcile,
+  resolveBroadcast,
   SponsorLedgerSchema,
   WalletCapacitySchema,
   type HiroSponsorTxView,
   type SponsorLedger,
+  type SponsorLedgerEntry,
   type WalletCapacity,
 } from "../src/index.js";
 
@@ -25,6 +29,8 @@ const SPONSOR = "SP1KGHF33Y4M7Q87WNRXQBCAP2Y6DBSQSHJHQH4T";
 const STRANGER = "SP2STRANGERXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
 const TX_OURS =
   "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const TX_OURS_2 =
+  "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";
 const TX_FOREIGN =
   "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const TX_ORPHAN =
@@ -51,6 +57,18 @@ function makeLedger(entries: SponsorLedger["entries"] = {}): SponsorLedger {
   return { sponsorAddress: SPONSOR, entries };
 }
 
+function makeEntry(overrides: Partial<SponsorLedgerEntry> = {}): SponsorLedgerEntry {
+  return {
+    nonce: 105,
+    txId: TX_OURS,
+    fee: "5000",
+    status: "broadcast_sent",
+    broadcastAt: NOW.toISOString(),
+    rbfAttempts: 0,
+    ...overrides,
+  };
+}
+
 function hiroTx(overrides: Partial<HiroSponsorTxView> = {}): HiroSponsorTxView {
   return HiroSponsorTxViewSchema.parse({
     tx_id: TX_OURS,
@@ -65,7 +83,7 @@ function hiroTx(overrides: Partial<HiroSponsorTxView> = {}): HiroSponsorTxView {
 }
 
 // ---------------------------------------------------------------------------
-// SponsorLedgerSchema — key/nonce drift guard
+// SponsorLedgerSchema — key/nonce drift guard + required status
 // ---------------------------------------------------------------------------
 
 describe("SponsorLedgerSchema", () => {
@@ -73,14 +91,17 @@ describe("SponsorLedgerSchema", () => {
     const result = SponsorLedgerSchema.safeParse({
       sponsorAddress: SPONSOR,
       entries: {
-        "104": {
-          nonce: 105,
-          txId: TX_OURS,
-          fee: "5000",
-          broadcastAt: NOW.toISOString(),
-          rbfAttempts: 0,
-        },
+        "104": makeEntry({ nonce: 105 }),
       },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects ledger entries that omit status", () => {
+    const { status: _status, ...rest } = makeEntry();
+    const result = SponsorLedgerSchema.safeParse({
+      sponsorAddress: SPONSOR,
+      entries: { "105": rest },
     });
     expect(result.success).toBe(false);
   });
@@ -99,18 +120,13 @@ describe("classifyOccupant", () => {
 
   it("classifies our sponsor-owned tx as in-ledger when it matches", () => {
     const ledger = makeLedger({
-      "105": {
-        nonce: 105,
-        txId: TX_OURS,
-        fee: "5000",
-        broadcastAt: NOW.toISOString(),
-        rbfAttempts: 1,
-      },
+      "105": makeEntry({ rbfAttempts: 1 }),
     });
     const result = classifyOccupant(hiroTx(), SPONSOR, ledger, 105);
     expect(result.kind).toBe("sponsor_owned_in_ledger");
     if (result.kind === "sponsor_owned_in_ledger") {
       expect(result.ledgerEntry.txId).toBe(TX_OURS);
+      expect(result.ledgerEntry.status).toBe("broadcast_sent");
     }
   });
 
@@ -152,20 +168,12 @@ describe("classifyOccupant", () => {
 });
 
 // ---------------------------------------------------------------------------
-// decideBroadcast workflow cases (from issue #22 acceptance criteria)
+// decideBroadcast workflow cases
 // ---------------------------------------------------------------------------
 
 describe("decideBroadcast", () => {
   it("sponsor-owned in-ledger conflict → RBF with occupant_fee + 1", () => {
-    const ledger = makeLedger({
-      "105": {
-        nonce: 105,
-        txId: TX_OURS,
-        fee: "5000",
-        broadcastAt: NOW.toISOString(),
-        rbfAttempts: 1,
-      },
-    });
+    const ledger = makeLedger({ "105": makeEntry({ rbfAttempts: 1 }) });
     const occupant = classifyOccupant(hiroTx(), SPONSOR, ledger, 105);
     const decision = decideBroadcast(
       makeWallet({ occupiedNonces: [] }),
@@ -348,6 +356,143 @@ describe("decideBroadcast", () => {
     );
     expect(decision).toEqual({ kind: "terminal", reason: "sponsor_exhausted" });
   });
+
+  it("returns await_pending_broadcast when the ledger entry is unresolved", () => {
+    const ledger = makeLedger({
+      "105": makeEntry({ status: "pending_broadcast" }),
+    });
+    const decision = decideBroadcast(
+      makeWallet(),
+      { outcome: "accepted" },
+      { nonce: 105, ledger }
+    );
+    expect(decision).toEqual({
+      kind: "await_pending_broadcast",
+      nonce: 105,
+      txId: TX_OURS,
+    });
+    expect(BroadcastDecisionSchema.parse(decision)).toEqual(decision);
+  });
+
+  it("await_pending_broadcast takes precedence over RBF for a conflict outcome", () => {
+    const ledger = makeLedger({
+      "105": makeEntry({ status: "pending_broadcast" }),
+    });
+    const occupant = classifyOccupant(hiroTx(), SPONSOR, ledger, 105);
+    const decision = decideBroadcast(
+      makeWallet(),
+      { outcome: "nonce_conflict", isOrigin: false },
+      { nonce: 105, ledger, occupant }
+    );
+    expect(decision.kind).toBe("await_pending_broadcast");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Two-phase broadcast lifecycle
+// ---------------------------------------------------------------------------
+
+describe("beginPendingBroadcast", () => {
+  it("writes a new pending_broadcast entry for a fresh nonce", () => {
+    const ledger = beginPendingBroadcast(makeLedger(), {
+      nonce: 105,
+      txId: TX_OURS,
+      fee: "5000",
+      broadcastAt: NOW,
+    });
+    expect(ledger.entries["105"]).toMatchObject({
+      nonce: 105,
+      txId: TX_OURS,
+      fee: "5000",
+      status: "pending_broadcast",
+      broadcastAt: NOW.toISOString(),
+      rbfAttempts: 0,
+    });
+    expect(SponsorLedgerSchema.parse(ledger)).toEqual(ledger);
+  });
+
+  it("allows transition from broadcast_sent (RBF replaces prior entry)", () => {
+    const prior = makeLedger({ "105": makeEntry({ rbfAttempts: 2 }) });
+    const next = beginPendingBroadcast(prior, {
+      nonce: 105,
+      txId: TX_OURS_2,
+      fee: "6000",
+      rbfAttempts: 3,
+      broadcastAt: NOW,
+    });
+    expect(next.entries["105"]?.status).toBe("pending_broadcast");
+    expect(next.entries["105"]?.txId).toBe(TX_OURS_2);
+    expect(next.entries["105"]?.rbfAttempts).toBe(3);
+  });
+
+  it("allows transition from broadcast_failed (retry)", () => {
+    const prior = makeLedger({
+      "105": makeEntry({ status: "broadcast_failed" }),
+    });
+    const next = beginPendingBroadcast(prior, {
+      nonce: 105,
+      txId: TX_OURS_2,
+      fee: "6000",
+      broadcastAt: NOW,
+    });
+    expect(next.entries["105"]?.status).toBe("pending_broadcast");
+  });
+
+  it("refuses to overwrite an unresolved pending_broadcast entry", () => {
+    const prior = makeLedger({
+      "105": makeEntry({ status: "pending_broadcast" }),
+    });
+    expect(() =>
+      beginPendingBroadcast(prior, {
+        nonce: 105,
+        txId: TX_OURS_2,
+        fee: "6000",
+      })
+    ).toThrow(LedgerTransitionError);
+  });
+});
+
+describe("resolveBroadcast", () => {
+  it("transitions pending_broadcast → broadcast_sent", () => {
+    const ledger = beginPendingBroadcast(makeLedger(), {
+      nonce: 105,
+      txId: TX_OURS,
+      fee: "5000",
+      broadcastAt: NOW,
+    });
+    const resolved = resolveBroadcast(ledger, 105, "sent");
+    expect(resolved.entries["105"]?.status).toBe("broadcast_sent");
+  });
+
+  it("transitions pending_broadcast → broadcast_failed", () => {
+    const ledger = beginPendingBroadcast(makeLedger(), {
+      nonce: 105,
+      txId: TX_OURS,
+      fee: "5000",
+      broadcastAt: NOW,
+    });
+    const resolved = resolveBroadcast(ledger, 105, "failed", {
+      lastOutcome: { outcome: "server_error", reason: "upstream 502" },
+    });
+    expect(resolved.entries["105"]?.status).toBe("broadcast_failed");
+    expect(resolved.entries["105"]?.lastOutcome).toEqual({
+      outcome: "server_error",
+      reason: "upstream 502",
+    });
+  });
+
+  it("throws when the entry does not exist", () => {
+    expect(() => resolveBroadcast(makeLedger(), 105, "sent")).toThrow(
+      LedgerTransitionError
+    );
+  });
+
+  it("throws when the entry is not pending (no double-resolve)", () => {
+    const ledger = makeLedger({ "105": makeEntry() });
+    expect(() => resolveBroadcast(ledger, 105, "sent")).toThrow(
+      LedgerTransitionError
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -459,19 +604,13 @@ describe("quarantine", () => {
 });
 
 // ---------------------------------------------------------------------------
-// reconcile — orphans adopted, missing entries flagged
+// reconcile — orphans, grace window, pending promotion
 // ---------------------------------------------------------------------------
 
 describe("reconcile", () => {
   it("adopts orphans seen in the mempool and flags ledger entries that disappeared", () => {
     const ledger = makeLedger({
-      "104": {
-        nonce: 104,
-        txId: TX_OURS,
-        fee: "5000",
-        broadcastAt: NOW.toISOString(),
-        rbfAttempts: 0,
-      },
+      "104": makeEntry({ nonce: 104 }),
     });
     const wallet = makeWallet();
 
@@ -480,27 +619,25 @@ describe("reconcile", () => {
       105: hiroTx({ tx_id: TX_ORPHAN, fee_rate: "7000" }),
     };
 
-    const result = reconcile(wallet, ledger, mempool, SPONSOR, { now: NOW });
+    const result = reconcile(wallet, ledger, mempool, SPONSOR, {
+      now: new Date(NOW.getTime() + 120_000),
+    });
     expect(result.adopted).toEqual([105]);
     expect(result.dropped).toEqual([104]);
+    expect(result.inFlightPendingIndex).toEqual([]);
     expect(result.ledger.entries["105"]?.txId).toBe(TX_ORPHAN);
+    expect(result.ledger.entries["105"]?.status).toBe("broadcast_sent");
     expect(result.wallet.occupiedNonces.map((n) => n.nonce)).toContain(105);
   });
 
   it("flags ledger drift when mempool tx_id differs from ledger", () => {
-    const ledger = makeLedger({
-      "104": {
-        nonce: 104,
-        txId: TX_OURS,
-        fee: "5000",
-        broadcastAt: NOW.toISOString(),
-        rbfAttempts: 0,
-      },
-    });
+    const ledger = makeLedger({ "104": makeEntry({ nonce: 104 }) });
     const mempool: Record<number, HiroSponsorTxView | null> = {
       104: hiroTx({ tx_id: TX_ORPHAN, sponsor_nonce: 104 }),
     };
-    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, {
+      now: new Date(NOW.getTime() + 120_000),
+    });
     expect(result.dropped).toContain(104);
   });
 
@@ -529,5 +666,141 @@ describe("reconcile", () => {
     expect(result.adopted).toEqual([]);
     expect(result.unpriceableOrphans).toEqual([105]);
     expect(result.ledger.entries["105"]).toBeUndefined();
+  });
+
+  it("promotes pending_broadcast → broadcast_sent when the mempool confirms the txId", () => {
+    const ledger = makeLedger({
+      "105": makeEntry({ status: "pending_broadcast" }),
+    });
+    const mempool: Record<number, HiroSponsorTxView | null> = {
+      105: hiroTx(),
+    };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.ledger.entries["105"]?.status).toBe("broadcast_sent");
+  });
+
+  it("classifies inside-grace absences as inFlightPendingIndex, not dropped", () => {
+    const broadcastAt = new Date(NOW.getTime() - 10_000); // 10s ago
+    const ledger = makeLedger({
+      "105": makeEntry({
+        status: "pending_broadcast",
+        broadcastAt: broadcastAt.toISOString(),
+      }),
+    });
+    const mempool: Record<number, HiroSponsorTxView | null> = { 105: null };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.inFlightPendingIndex).toEqual([105]);
+    expect(result.dropped).toEqual([]);
+  });
+
+  it("classifies past-grace absences as dropped", () => {
+    const broadcastAt = new Date(NOW.getTime() - 60_000); // 60s ago
+    const ledger = makeLedger({
+      "105": makeEntry({
+        status: "pending_broadcast",
+        broadcastAt: broadcastAt.toISOString(),
+      }),
+    });
+    const mempool: Record<number, HiroSponsorTxView | null> = { 105: null };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.dropped).toEqual([105]);
+    expect(result.inFlightPendingIndex).toEqual([]);
+  });
+
+  it("does NOT grace-window broadcast_sent entries — node already confirmed receipt", () => {
+    // Entry was sent 5s ago (well inside the default 30s grace) but its
+    // status is broadcast_sent, meaning the node accepted it. A subsequent
+    // mempool absence is not propagation lag — it's mined or evicted, and
+    // the caller must look up tx status to disambiguate. Grace doesn't apply.
+    const broadcastAt = new Date(NOW.getTime() - 5_000);
+    const ledger = makeLedger({
+      "105": makeEntry({
+        status: "broadcast_sent",
+        broadcastAt: broadcastAt.toISOString(),
+      }),
+    });
+    const mempool: Record<number, HiroSponsorTxView | null> = { 105: null };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.dropped).toEqual([105]);
+    expect(result.inFlightPendingIndex).toEqual([]);
+  });
+
+  it("treats txId drift as dropped even within the grace window (drift is not lag)", () => {
+    const broadcastAt = new Date(NOW.getTime() - 5_000); // 5s ago, well inside grace
+    const ledger = makeLedger({
+      "105": makeEntry({
+        nonce: 105,
+        txId: TX_OURS,
+        broadcastAt: broadcastAt.toISOString(),
+      }),
+    });
+    // Mempool reports a *different* sponsor-owned tx at the same nonce.
+    const mempool: Record<number, HiroSponsorTxView | null> = {
+      105: hiroTx({ tx_id: TX_ORPHAN, fee_rate: "7000" }),
+    };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.dropped).toContain(105);
+    expect(result.inFlightPendingIndex).toEqual([]);
+  });
+
+  it("honors a custom justBroadcastGraceSeconds override", () => {
+    const broadcastAt = new Date(NOW.getTime() - 45_000); // 45s ago
+    const ledger = makeLedger({
+      "105": makeEntry({
+        status: "pending_broadcast",
+        broadcastAt: broadcastAt.toISOString(),
+      }),
+    });
+    const mempool: Record<number, HiroSponsorTxView | null> = { 105: null };
+
+    const tight = reconcile(makeWallet(), ledger, mempool, SPONSOR, {
+      now: NOW,
+      justBroadcastGraceSeconds: 30,
+    });
+    expect(tight.dropped).toEqual([105]);
+
+    const lenient = reconcile(makeWallet(), ledger, mempool, SPONSOR, {
+      now: NOW,
+      justBroadcastGraceSeconds: 60,
+    });
+    expect(lenient.inFlightPendingIndex).toEqual([105]);
+  });
+
+  it("two-phase happy path end-to-end: begin → reconcile promotes → resolve is a no-op edge case", () => {
+    let ledger = beginPendingBroadcast(makeLedger(), {
+      nonce: 105,
+      txId: TX_OURS,
+      fee: "5000",
+      broadcastAt: NOW,
+    });
+    expect(ledger.entries["105"]?.status).toBe("pending_broadcast");
+
+    // Network call returned success — caller resolves explicitly.
+    ledger = resolveBroadcast(ledger, 105, "sent");
+    expect(ledger.entries["105"]?.status).toBe("broadcast_sent");
+
+    // Mempool later confirms the same txId; no drift, no adopt.
+    const mempool: Record<number, HiroSponsorTxView | null> = {
+      105: hiroTx(),
+    };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.adopted).toEqual([]);
+    expect(result.dropped).toEqual([]);
+    expect(result.inFlightPendingIndex).toEqual([]);
+  });
+
+  it("two-phase crash recovery: pending entry older than grace is dropped for caller to inspect", () => {
+    // Simulate: beginPendingBroadcast succeeded, process died, entry was
+    // never resolved and the tx never reached the node.
+    const broadcastAt = new Date(NOW.getTime() - 120_000);
+    const ledger = makeLedger({
+      "105": makeEntry({
+        status: "pending_broadcast",
+        broadcastAt: broadcastAt.toISOString(),
+      }),
+    });
+    const mempool: Record<number, HiroSponsorTxView | null> = { 105: null };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.dropped).toEqual([105]);
   });
 });

@@ -7,8 +7,12 @@ import {
   StacksAddressSchema,
   TransactionIdSchema,
 } from "./primitives.js";
-import { getLedgerEntry, SponsorLedgerEntrySchema } from "./sponsor-ledger.js";
+import {
+  getLedgerEntry,
+  SponsorLedgerEntrySchema,
+} from "./sponsor-ledger.js";
 import type {
+  LedgerEntryStatus,
   SponsorLedger,
   SponsorLedgerEntry,
 } from "./sponsor-ledger.js";
@@ -93,12 +97,19 @@ const TerminalDecisionSchema = z.object({
   reason: FailedTerminalReasonSchema,
 });
 
+const AwaitPendingBroadcastDecisionSchema = z.object({
+  kind: z.literal("await_pending_broadcast"),
+  nonce: NonNegativeIntegerSchema,
+  txId: TransactionIdSchema,
+});
+
 export const BroadcastDecisionSchema = z.discriminatedUnion("kind", [
   FirstBroadcastDecisionSchema,
   RbfWithFeeDecisionSchema,
   AdoptThenRbfDecisionSchema,
   QuarantineDecisionSchema,
   TerminalDecisionSchema,
+  AwaitPendingBroadcastDecisionSchema,
 ]);
 
 export type BroadcastDecision = z.infer<typeof BroadcastDecisionSchema>;
@@ -133,6 +144,7 @@ export function classifyOccupant(
             nonce: entry.nonce,
             txId: entry.txId,
             fee: entry.fee,
+            status: entry.status,
             broadcastAt: entry.broadcastAt,
             rbfAttempts: entry.rbfAttempts,
           },
@@ -159,7 +171,8 @@ export function classifyOccupant(
 //
 // Maps a (walletCapacity, nodeBroadcastOutcome, ledger-for-nonce, occupant)
 // tuple to the next action: first broadcast, RBF, adopt-then-RBF, quarantine,
-// or terminal. Pure — no I/O, no time source.
+// terminal, or await-pending (the prior broadcast hasn't been resolved yet).
+// Pure — no I/O, no time source.
 // ---------------------------------------------------------------------------
 
 export interface BroadcastContext {
@@ -180,6 +193,18 @@ export function decideBroadcast(
   const { nonce, ledger, occupant } = context;
   const maxAttempts = context.maxRbfAttempts ?? MAX_RBF_ATTEMPTS;
   const ledgerEntry = getLedgerEntry(ledger, nonce);
+
+  // Hard invariant: a pending_broadcast ledger entry means a prior broadcast
+  // call hasn't been resolved. Issuing a new decision on top would risk
+  // double-broadcast. Force the consumer to resolveBroadcast() first.
+  if (ledgerEntry?.status === "pending_broadcast") {
+    return {
+      kind: "await_pending_broadcast",
+      nonce,
+      txId: ledgerEntry.txId,
+    };
+  }
+
   const occupied = wallet.occupiedNonces.find((o) => o.nonce === nonce);
   const attempts = occupied?.rbfAttempts ?? ledgerEntry?.rbfAttempts ?? 0;
 
@@ -287,6 +312,111 @@ function decideSponsorConflict(args: {
 const bump = (fee: string): string => (BigInt(fee) + 1n).toString();
 
 // ---------------------------------------------------------------------------
+// Two-phase broadcast lifecycle
+//
+// beginPendingBroadcast → (network call) → resolveBroadcast
+//
+// The ledger is written BEFORE the network call so a crash between write
+// and call return never produces a ledger entry claiming sent-to-node when
+// the node never saw the tx. On the return path, resolveBroadcast promotes
+// pending → broadcast_sent or → broadcast_failed. If the process dies in
+// between, reconcile() sweeps stragglers using the grace window.
+// ---------------------------------------------------------------------------
+
+export class LedgerTransitionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LedgerTransitionError";
+  }
+}
+
+export interface BeginPendingBroadcastInput {
+  nonce: number;
+  txId: string;
+  fee: string;
+  broadcastAt?: Date;
+  rbfAttempts?: number;
+}
+
+// Valid predecessors for entering pending_broadcast at a nonce. A fresh nonce
+// (no entry) is allowed; prior terminal states (sent/failed) are allowed
+// because they represent a completed lifecycle that the caller is extending
+// with a new txId (RBF or retry). pending_broadcast is NOT a valid predecessor
+// — the prior call must be resolved first.
+const PENDING_PREDECESSORS = new Set<LedgerEntryStatus | "none">([
+  "none",
+  "broadcast_sent",
+  "broadcast_failed",
+]);
+
+export function beginPendingBroadcast(
+  ledger: SponsorLedger,
+  input: BeginPendingBroadcastInput
+): SponsorLedger {
+  const { nonce, txId, fee } = input;
+  const existing = getLedgerEntry(ledger, nonce);
+  const predecessor: LedgerEntryStatus | "none" = existing?.status ?? "none";
+
+  if (!PENDING_PREDECESSORS.has(predecessor)) {
+    throw new LedgerTransitionError(
+      `cannot begin pending_broadcast for nonce ${nonce}: prior status is ${predecessor}. resolveBroadcast() must be called first.`
+    );
+  }
+
+  const broadcastAt = (input.broadcastAt ?? new Date()).toISOString();
+  const rbfAttempts = input.rbfAttempts ?? existing?.rbfAttempts ?? 0;
+
+  const entry: SponsorLedgerEntry = {
+    nonce,
+    txId,
+    fee,
+    status: "pending_broadcast",
+    broadcastAt,
+    rbfAttempts,
+  };
+
+  return {
+    ...ledger,
+    entries: { ...ledger.entries, [String(nonce)]: entry },
+  };
+}
+
+export type ResolveBroadcastOutcome = "sent" | "failed";
+
+export function resolveBroadcast(
+  ledger: SponsorLedger,
+  nonce: number,
+  outcome: ResolveBroadcastOutcome,
+  options: { lastOutcome?: NodeBroadcastOutcome } = {}
+): SponsorLedger {
+  const entry = getLedgerEntry(ledger, nonce);
+  if (!entry) {
+    throw new LedgerTransitionError(
+      `cannot resolve nonce ${nonce}: no ledger entry exists.`
+    );
+  }
+  if (entry.status !== "pending_broadcast") {
+    throw new LedgerTransitionError(
+      `cannot resolve nonce ${nonce}: current status is ${entry.status}, expected pending_broadcast.`
+    );
+  }
+
+  const status: LedgerEntryStatus =
+    outcome === "sent" ? "broadcast_sent" : "broadcast_failed";
+
+  const resolved: SponsorLedgerEntry = {
+    ...entry,
+    status,
+    ...(options.lastOutcome !== undefined && { lastOutcome: options.lastOutcome }),
+  };
+
+  return {
+    ...ledger,
+    entries: { ...ledger.entries, [String(nonce)]: resolved },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // adoptOrphan
 //
 // Folds an unrecorded sponsor-broadcast tx into wallet state. Adds/updates
@@ -377,17 +507,47 @@ export function quarantine(
 //
 // Folds one address-filtered mempool read into wallet + ledger:
 //   - adopts sponsor-owned tx_ids missing from the ledger
-//   - flags ledger entries that are no longer visible in the mempool
+//   - promotes pending_broadcast entries to broadcast_sent on mempool hit
+//   - classifies ledger entries not (yet) seen in the mempool:
+//     * within the just-broadcast grace window → inFlightPendingIndex
+//     * past the grace window → dropped
 //
-// Returns the updated wallet + ledger plus the adopted/dropped nonce lists so
-// the caller can log/alert. Pure — `now` is injectable.
+// Returns the updated wallet + ledger plus classification lists so the caller
+// can log/alert. Pure — `now` is injectable.
 // ---------------------------------------------------------------------------
+
+export const DEFAULT_JUST_BROADCAST_GRACE_SECONDS = 30;
+
+export interface ReconcileOptions {
+  now?: Date;
+  // Grace window for `pending_broadcast` ledger entries that are absent from
+  // the mempool read. Within this many seconds of `broadcastAt`, absence is
+  // classified as `inFlightPendingIndex` (node may have accepted; indexer
+  // hasn't reported yet) instead of `dropped`. Default 30s.
+  //
+  // Note: this default is calibrated to typical Hiro indexer latency and is
+  // intentionally on the tight end — 6-10 Nakamoto blocks at ~3-5s/block plus
+  // indexing puts the natural worst case near 30-50s. Operators who observe
+  // routine Hiro slowness should override upward; the grace only delays the
+  // `dropped` classification, it never changes a true outcome.
+  //
+  // The grace window applies ONLY to `pending_broadcast` entries. A
+  // `broadcast_sent` entry that vanishes is a different operational signal
+  // (the node confirmed receipt; absence usually means mined or evicted), so
+  // it falls through to `dropped` immediately for the caller to disambiguate
+  // via tx status lookup.
+  justBroadcastGraceSeconds?: number;
+}
 
 export interface ReconcileResult {
   wallet: WalletCapacity;
   ledger: SponsorLedger;
   adopted: number[];
   dropped: number[];
+  // Ledger entries absent from the mempool but still within the grace
+  // window. Callers should NOT treat these as missing — the node accepted
+  // the broadcast; the indexer just hasn't caught up.
+  inFlightPendingIndex: number[];
   // Orphans we saw but couldn't price (no fee_rate on the Hiro view).
   // Callers should quarantine/alert rather than assume a safe RBF baseline.
   unpriceableOrphans: number[];
@@ -398,16 +558,24 @@ export function reconcile(
   ledger: SponsorLedger,
   mempoolReadByNonce: Record<number, HiroSponsorTxView | null | undefined>,
   ourSponsorAddress: string,
-  options: { now?: Date } = {}
+  options: ReconcileOptions = {}
 ): ReconcileResult {
   const now = options.now ?? new Date();
   const nowIso = now.toISOString();
+  const nowMs = now.getTime();
+  const graceMs =
+    (options.justBroadcastGraceSeconds ?? DEFAULT_JUST_BROADCAST_GRACE_SECONDS) *
+    1000;
+
   let nextWallet = wallet;
   let nextLedger = ledger;
   const adopted: number[] = [];
   const dropped: number[] = [];
+  const inFlightPendingIndex: number[] = [];
   const unpriceableOrphans: number[] = [];
 
+  // Pass 1: adopt orphans, promote pending_broadcast → broadcast_sent when
+  // the mempool confirms our txId.
   for (const [nonceStr, hiroTx] of Object.entries(mempoolReadByNonce)) {
     const nonce = Number(nonceStr);
     if (!Number.isInteger(nonce) || nonce < 0) continue;
@@ -419,6 +587,21 @@ export function reconcile(
       nextLedger,
       nonce
     );
+
+    if (classification.kind === "sponsor_owned_in_ledger") {
+      const entry = getLedgerEntry(nextLedger, nonce);
+      if (entry?.status === "pending_broadcast") {
+        nextLedger = {
+          ...nextLedger,
+          entries: {
+            ...nextLedger.entries,
+            [String(nonce)]: { ...entry, status: "broadcast_sent" },
+          },
+        };
+      }
+      continue;
+    }
+
     if (classification.kind !== "sponsor_owned_orphan") continue;
 
     if (hiroTx.fee_rate === undefined) {
@@ -435,6 +618,7 @@ export function reconcile(
           nonce,
           txId: hiroTx.tx_id,
           fee: hiroTx.fee_rate,
+          status: "broadcast_sent",
           broadcastAt: nowIso,
           rbfAttempts: 0,
         },
@@ -443,11 +627,37 @@ export function reconcile(
     adopted.push(nonce);
   }
 
+  // Pass 2: classify absences. Three distinct cases:
+  //   - observed.tx_id !== entry.txId → drift, not lag. The indexer is
+  //     already reporting a concrete outcome at this nonce. Classify as
+  //     dropped regardless of age so the caller re-decides immediately.
+  //   - observed is null/undefined AND entry.status === "pending_broadcast"
+  //     → genuine propagation ambiguity. Apply the grace window.
+  //   - observed is null/undefined AND entry.status !== "pending_broadcast"
+  //     → the node already confirmed receipt of this tx; absence now means
+  //     mined or evicted. Classify as dropped immediately; the caller looks
+  //     up tx status to disambiguate.
   for (const [nonceStr, entry] of Object.entries(ledger.entries)) {
     const nonce = Number(nonceStr);
     if (!(nonce in mempoolReadByNonce)) continue;
     const observed = mempoolReadByNonce[nonce];
-    if (!observed || observed.tx_id !== entry.txId) {
+
+    if (observed && observed.tx_id === entry.txId) continue;
+
+    if (observed) {
+      dropped.push(entry.nonce);
+      continue;
+    }
+
+    if (entry.status !== "pending_broadcast") {
+      dropped.push(entry.nonce);
+      continue;
+    }
+
+    const ageMs = nowMs - Date.parse(entry.broadcastAt);
+    if (ageMs >= 0 && ageMs < graceMs) {
+      inFlightPendingIndex.push(entry.nonce);
+    } else {
       dropped.push(entry.nonce);
     }
   }
@@ -457,6 +667,7 @@ export function reconcile(
     ledger: nextLedger,
     adopted,
     dropped,
+    inFlightPendingIndex,
     unpriceableOrphans,
   };
 }
