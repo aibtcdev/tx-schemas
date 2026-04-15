@@ -43,6 +43,18 @@
       "types": "./dist/core/wallet-capacity.d.ts",
       "import": "./dist/core/wallet-capacity.js"
     },
+    "./core/sponsor-ledger": {
+      "types": "./dist/core/sponsor-ledger.d.ts",
+      "import": "./dist/core/sponsor-ledger.js"
+    },
+    "./core/sponsor-wallet-machine": {
+      "types": "./dist/core/sponsor-wallet-machine.d.ts",
+      "import": "./dist/core/sponsor-wallet-machine.js"
+    },
+    "./core/hiro-tx": {
+      "types": "./dist/core/hiro-tx.d.ts",
+      "import": "./dist/core/hiro-tx.js"
+    },
     "./core/sender-queue": {
       "types": "./dist/core/sender-queue.d.ts",
       "import": "./dist/core/sender-queue.js"
