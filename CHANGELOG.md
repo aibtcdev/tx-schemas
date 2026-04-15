@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.8.0...tx-schemas-v1.0.0) (2026-04-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* **core:** two-phase broadcast status + reconcile grace window ([#26](https://github.com/aibtcdev/tx-schemas/issues/26))
+
+### Features
+
+* **core:** two-phase broadcast status + reconcile grace window ([#26](https://github.com/aibtcdev/tx-schemas/issues/26)) ([cbf7261](https://github.com/aibtcdev/tx-schemas/commit/cbf72610a44dd06b2cfe9aa02bde5ac57bc5fc09))
+
 ## [0.8.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.7.0...tx-schemas-v0.8.0) (2026-04-15)
 
 
