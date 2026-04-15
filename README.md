@@ -194,9 +194,13 @@ try {
 ```
 
 `decideBroadcast` refuses to issue a new decision while the entry is
-`pending_broadcast` — it returns `{ kind: "await_pending_broadcast", nonce,
-txId }` so the consumer resolves the prior call before a second broadcast
-can fire.
+`pending_broadcast`. It returns:
+
+```ts
+{ kind: "await_pending_broadcast", nonce, txId }
+```
+
+so the consumer resolves the prior call before a second broadcast can fire.
 
 `reconcile()` sweeps survivors of crashes that dropped the resolve step:
 

@@ -707,6 +707,24 @@ describe("reconcile", () => {
     expect(result.inFlightPendingIndex).toEqual([]);
   });
 
+  it("treats txId drift as dropped even within the grace window (drift is not lag)", () => {
+    const broadcastAt = new Date(NOW.getTime() - 5_000); // 5s ago, well inside grace
+    const ledger = makeLedger({
+      "105": makeEntry({
+        nonce: 105,
+        txId: TX_OURS,
+        broadcastAt: broadcastAt.toISOString(),
+      }),
+    });
+    // Mempool reports a *different* sponsor-owned tx at the same nonce.
+    const mempool: Record<number, HiroSponsorTxView | null> = {
+      105: hiroTx({ tx_id: TX_ORPHAN, fee_rate: "7000" }),
+    };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.dropped).toContain(105);
+    expect(result.inFlightPendingIndex).toEqual([]);
+  });
+
   it("honors a custom justBroadcastGraceSeconds override", () => {
     const broadcastAt = new Date(NOW.getTime() - 45_000); // 45s ago
     const ledger = makeLedger({

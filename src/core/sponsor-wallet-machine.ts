@@ -9,7 +9,6 @@ import {
 } from "./primitives.js";
 import {
   getLedgerEntry,
-  LedgerEntryStatusSchema,
   SponsorLedgerEntrySchema,
 } from "./sponsor-ledger.js";
 import type {
@@ -616,14 +615,23 @@ export function reconcile(
     adopted.push(nonce);
   }
 
-  // Pass 2: classify absences. An entry whose nonce was included in the
-  // mempool read but whose txId is missing (null or mismatched) is either
-  // still-propagating (within grace) or truly dropped.
+  // Pass 2: classify absences. Two distinct cases:
+  //   - observed is null/undefined  → not seen yet; could be propagation lag
+  //     (grace-window → inFlightPendingIndex) or a true drop (past grace).
+  //   - observed.tx_id !== entry.txId → a different tx holds the slot. That's
+  //     drift, not lag — the indexer is already reporting a concrete outcome.
+  //     Classify as dropped regardless of age so callers re-decide immediately.
   for (const [nonceStr, entry] of Object.entries(ledger.entries)) {
     const nonce = Number(nonceStr);
     if (!(nonce in mempoolReadByNonce)) continue;
     const observed = mempoolReadByNonce[nonce];
+
     if (observed && observed.tx_id === entry.txId) continue;
+
+    if (observed) {
+      dropped.push(entry.nonce);
+      continue;
+    }
 
     const ageMs = nowMs - Date.parse(entry.broadcastAt);
     if (ageMs >= 0 && ageMs < graceMs) {
