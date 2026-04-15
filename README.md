@@ -178,7 +178,7 @@ import {
   reconcile,
 } from "@aibtc/tx-schemas/core";
 
-let ledger = beginPendingBroadcast(ledger, {
+ledger = beginPendingBroadcast(ledger, {
   nonce,
   txId,
   fee,
@@ -191,6 +191,20 @@ try {
   ledger = resolveBroadcast(ledger, nonce, "failed");
   throw err;
 }
+```
+
+For RBF (e.g., a `fee_too_low` outcome), pass the incremented attempt count
+explicitly — `beginPendingBroadcast` does not auto-increment, since the same
+helper is also used for first broadcasts and retries:
+
+```ts
+const existing = ledger.entries[String(nonce)]!;
+ledger = beginPendingBroadcast(ledger, {
+  nonce,
+  txId: rbfTxId,
+  fee: bumpedFee,
+  rbfAttempts: existing.rbfAttempts + 1,
+});
 ```
 
 `decideBroadcast` refuses to issue a new decision while the entry is

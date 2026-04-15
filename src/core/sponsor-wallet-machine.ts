@@ -520,10 +520,22 @@ export const DEFAULT_JUST_BROADCAST_GRACE_SECONDS = 30;
 
 export interface ReconcileOptions {
   now?: Date;
-  // Ledger entries broadcast within this many seconds are classified as
-  // `inFlightPendingIndex` rather than `dropped` when absent from the
-  // mempool read. Covers node→indexer propagation lag (~6-10 Nakamoto
-  // blocks + Hiro indexing). Default 30s.
+  // Grace window for `pending_broadcast` ledger entries that are absent from
+  // the mempool read. Within this many seconds of `broadcastAt`, absence is
+  // classified as `inFlightPendingIndex` (node may have accepted; indexer
+  // hasn't reported yet) instead of `dropped`. Default 30s.
+  //
+  // Note: this default is calibrated to typical Hiro indexer latency and is
+  // intentionally on the tight end — 6-10 Nakamoto blocks at ~3-5s/block plus
+  // indexing puts the natural worst case near 30-50s. Operators who observe
+  // routine Hiro slowness should override upward; the grace only delays the
+  // `dropped` classification, it never changes a true outcome.
+  //
+  // The grace window applies ONLY to `pending_broadcast` entries. A
+  // `broadcast_sent` entry that vanishes is a different operational signal
+  // (the node confirmed receipt; absence usually means mined or evicted), so
+  // it falls through to `dropped` immediately for the caller to disambiguate
+  // via tx status lookup.
   justBroadcastGraceSeconds?: number;
 }
 
@@ -615,12 +627,16 @@ export function reconcile(
     adopted.push(nonce);
   }
 
-  // Pass 2: classify absences. Two distinct cases:
-  //   - observed is null/undefined  → not seen yet; could be propagation lag
-  //     (grace-window → inFlightPendingIndex) or a true drop (past grace).
-  //   - observed.tx_id !== entry.txId → a different tx holds the slot. That's
-  //     drift, not lag — the indexer is already reporting a concrete outcome.
-  //     Classify as dropped regardless of age so callers re-decide immediately.
+  // Pass 2: classify absences. Three distinct cases:
+  //   - observed.tx_id !== entry.txId → drift, not lag. The indexer is
+  //     already reporting a concrete outcome at this nonce. Classify as
+  //     dropped regardless of age so the caller re-decides immediately.
+  //   - observed is null/undefined AND entry.status === "pending_broadcast"
+  //     → genuine propagation ambiguity. Apply the grace window.
+  //   - observed is null/undefined AND entry.status !== "pending_broadcast"
+  //     → the node already confirmed receipt of this tx; absence now means
+  //     mined or evicted. Classify as dropped immediately; the caller looks
+  //     up tx status to disambiguate.
   for (const [nonceStr, entry] of Object.entries(ledger.entries)) {
     const nonce = Number(nonceStr);
     if (!(nonce in mempoolReadByNonce)) continue;
@@ -629,6 +645,11 @@ export function reconcile(
     if (observed && observed.tx_id === entry.txId) continue;
 
     if (observed) {
+      dropped.push(entry.nonce);
+      continue;
+    }
+
+    if (entry.status !== "pending_broadcast") {
       dropped.push(entry.nonce);
       continue;
     }

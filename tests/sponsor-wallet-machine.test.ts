@@ -707,6 +707,24 @@ describe("reconcile", () => {
     expect(result.inFlightPendingIndex).toEqual([]);
   });
 
+  it("does NOT grace-window broadcast_sent entries — node already confirmed receipt", () => {
+    // Entry was sent 5s ago (well inside the default 30s grace) but its
+    // status is broadcast_sent, meaning the node accepted it. A subsequent
+    // mempool absence is not propagation lag — it's mined or evicted, and
+    // the caller must look up tx status to disambiguate. Grace doesn't apply.
+    const broadcastAt = new Date(NOW.getTime() - 5_000);
+    const ledger = makeLedger({
+      "105": makeEntry({
+        status: "broadcast_sent",
+        broadcastAt: broadcastAt.toISOString(),
+      }),
+    });
+    const mempool: Record<number, HiroSponsorTxView | null> = { 105: null };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
+    expect(result.dropped).toEqual([105]);
+    expect(result.inFlightPendingIndex).toEqual([]);
+  });
+
   it("treats txId drift as dropped even within the grace window (drift is not lag)", () => {
     const broadcastAt = new Date(NOW.getTime() - 5_000); // 5s ago, well inside grace
     const ledger = makeLedger({
