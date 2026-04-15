@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.7.0...tx-schemas-v0.8.0) (2026-04-15)
+
+
+### Features
+
+* **core:** sponsor-wallet state-machine helpers (closes [#22](https://github.com/aibtcdev/tx-schemas/issues/22)) ([#23](https://github.com/aibtcdev/tx-schemas/issues/23)) ([75ed8bb](https://github.com/aibtcdev/tx-schemas/commit/75ed8bb813e714482265e7dc52aaa55d1e2b96c2))
+
 ## [0.7.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.6.0...tx-schemas-v0.7.0) (2026-04-10)
 
 
