@@ -84,3 +84,72 @@ More detail lives in [docs/package-schemas.md](docs/package-schemas.md),
 [docs/boring-state-machine-contract.md](docs/boring-state-machine-contract.md),
 [docs/x402-approval-spec.md](docs/x402-approval-spec.md), and
 [docs/x402-state-machines.md](docs/x402-state-machines.md).
+
+## Consuming sponsor wallet helpers
+
+The `core` export ships pure state-machine helpers so that every service that
+touches a sponsor wallet (`/sponsor`, `/relay`, `/settle`, …) drives off the
+same primitives instead of re-implementing the nonce-conflict logic inline.
+
+The canonical cycle is: classify what is at the nonce, decide what to do,
+apply the decision to state, reconcile periodically against the mempool.
+
+```ts
+import {
+  classifyOccupant,
+  decideBroadcast,
+  adoptOrphan,
+  quarantine,
+  reconcile,
+  type HiroSponsorTxView,
+  type SponsorLedger,
+  type WalletCapacity,
+} from "@aibtc/tx-schemas/core";
+
+function handleConflict(
+  wallet: WalletCapacity,
+  ledger: SponsorLedger,
+  nonce: number,
+  mempoolHit: HiroSponsorTxView | null,
+  sponsorAddress: string
+) {
+  const occupant = classifyOccupant(mempoolHit, sponsorAddress, ledger, nonce);
+
+  const decision = decideBroadcast(
+    wallet,
+    { outcome: "nonce_conflict", isOrigin: false },
+    { nonce, ledger, occupant }
+  );
+
+  switch (decision.kind) {
+    case "rbf_with_fee":
+      // re-sign at decision.fee, broadcast
+      return wallet;
+    case "adopt_then_rbf":
+      // `adopt_then_rbf` is only emitted when the occupant was classified as
+      // `sponsor_owned_orphan`, which requires a non-null mempool hit.
+      return adoptOrphan(wallet, mempoolHit!);
+    case "quarantine":
+      return quarantine(wallet, decision.nonce, decision.reason, {
+        txId: occupant.kind !== "untraceable" ? occupant.txId : undefined,
+      });
+    case "terminal":
+      // mark the payment terminal with decision.reason
+      return wallet;
+    case "first_broadcast":
+      return wallet;
+  }
+}
+
+// Periodic reconciliation pass adopts unrecorded sponsor txs and flags drops:
+const { wallet: next, ledger: nextLedger, adopted, dropped } = reconcile(
+  wallet,
+  ledger,
+  mempoolReadByNonce,
+  sponsorAddress
+);
+```
+
+All helpers are pure: inputs → new state. No I/O, and time-sensitive helpers
+accept an injectable `now` option for deterministic tests; otherwise they use
+the current time by default.
