@@ -97,7 +97,9 @@ export const WalletCapacitySchema = z
     recentFailureWindow: PositiveIntegerSchema,
 
     // Quarantined slots + the next nonce the relay should assign from.
-    // Both optional for back-compat; default to []/assignmentHead.
+    // Optional for back-compat — consumers treat `undefined` as `[]` and
+    // `assignmentHead` respectively; helpers in sponsor-wallet-machine
+    // materialise concrete values on first write.
     quarantinedNonces: z.array(QuarantinedNonceSchema).optional(),
     possibleNextNonce: NonNegativeIntegerSchema.optional(),
   })

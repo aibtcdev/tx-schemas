@@ -150,5 +150,6 @@ const { wallet: next, ledger: nextLedger, adopted, dropped } = reconcile(
 );
 ```
 
-All helpers are pure: inputs → new state. No I/O, no clock reads except via
-an injectable `now` option for deterministic tests.
+All helpers are pure: inputs → new state. No I/O, and time-sensitive helpers
+accept an injectable `now` option for deterministic tests; otherwise they use
+the current time by default.

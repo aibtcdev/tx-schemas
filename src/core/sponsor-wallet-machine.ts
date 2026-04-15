@@ -146,7 +146,10 @@ export function classifyOccupant(
   return {
     kind: "foreign",
     txId: hiroTx.tx_id,
-    occupantAddress: hiroTx.sender_address,
+    // When the foreign tx is sponsored by a different sponsor, the sponsor
+    // nonce is held by that sponsor — attribute quarantine/alerts to them,
+    // not to the sender.
+    occupantAddress: hiroTx.sponsor_address ?? hiroTx.sender_address,
     fee: txFee,
   };
 }
@@ -385,6 +388,9 @@ export interface ReconcileResult {
   ledger: SponsorLedger;
   adopted: number[];
   dropped: number[];
+  // Orphans we saw but couldn't price (no fee_rate on the Hiro view).
+  // Callers should quarantine/alert rather than assume a safe RBF baseline.
+  unpriceableOrphans: number[];
 }
 
 export function reconcile(
@@ -400,6 +406,7 @@ export function reconcile(
   let nextLedger = ledger;
   const adopted: number[] = [];
   const dropped: number[] = [];
+  const unpriceableOrphans: number[] = [];
 
   for (const [nonceStr, hiroTx] of Object.entries(mempoolReadByNonce)) {
     const nonce = Number(nonceStr);
@@ -414,6 +421,11 @@ export function reconcile(
     );
     if (classification.kind !== "sponsor_owned_orphan") continue;
 
+    if (hiroTx.fee_rate === undefined) {
+      unpriceableOrphans.push(nonce);
+      continue;
+    }
+
     nextWallet = adoptOrphan(nextWallet, hiroTx, { now });
     nextLedger = {
       ...nextLedger,
@@ -422,7 +434,7 @@ export function reconcile(
         [String(nonce)]: {
           nonce,
           txId: hiroTx.tx_id,
-          fee: hiroTx.fee_rate ?? "0",
+          fee: hiroTx.fee_rate,
           broadcastAt: nowIso,
           rbfAttempts: 0,
         },
@@ -440,5 +452,11 @@ export function reconcile(
     }
   }
 
-  return { wallet: nextWallet, ledger: nextLedger, adopted, dropped };
+  return {
+    wallet: nextWallet,
+    ledger: nextLedger,
+    adopted,
+    dropped,
+    unpriceableOrphans,
+  };
 }

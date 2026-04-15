@@ -27,13 +27,25 @@ export const SponsorLedgerEntrySchema = z.object({
 
 export type SponsorLedgerEntry = z.infer<typeof SponsorLedgerEntrySchema>;
 
-export const SponsorLedgerSchema = z.object({
-  sponsorAddress: StacksAddressSchema,
-  entries: z.record(
-    z.string().regex(/^[0-9]+$/, "ledger keys must be integer nonce strings"),
-    SponsorLedgerEntrySchema
-  ),
-});
+export const SponsorLedgerSchema = z
+  .object({
+    sponsorAddress: StacksAddressSchema,
+    entries: z.record(
+      z.string().regex(/^[0-9]+$/, "ledger keys must be integer nonce strings"),
+      SponsorLedgerEntrySchema
+    ),
+  })
+  .superRefine((ledger, ctx) => {
+    for (const [key, entry] of Object.entries(ledger.entries)) {
+      if (Number(key) !== entry.nonce) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["entries", key, "nonce"],
+          message: `ledger entry nonce ${entry.nonce} does not match record key ${key}`,
+        });
+      }
+    }
+  });
 
 export type SponsorLedger = z.infer<typeof SponsorLedgerSchema>;
 

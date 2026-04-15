@@ -10,6 +10,7 @@ import {
   quarantine,
   RELAY_CHAINING_LIMIT,
   reconcile,
+  SponsorLedgerSchema,
   WalletCapacitySchema,
   type HiroSponsorTxView,
   type SponsorLedger,
@@ -64,6 +65,28 @@ function hiroTx(overrides: Partial<HiroSponsorTxView> = {}): HiroSponsorTxView {
 }
 
 // ---------------------------------------------------------------------------
+// SponsorLedgerSchema — key/nonce drift guard
+// ---------------------------------------------------------------------------
+
+describe("SponsorLedgerSchema", () => {
+  it("rejects ledgers whose entry nonce disagrees with its record key", () => {
+    const result = SponsorLedgerSchema.safeParse({
+      sponsorAddress: SPONSOR,
+      entries: {
+        "104": {
+          nonce: 105,
+          txId: TX_OURS,
+          fee: "5000",
+          broadcastAt: NOW.toISOString(),
+          rbfAttempts: 0,
+        },
+      },
+    });
+    expect(result.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // classifyOccupant
 // ---------------------------------------------------------------------------
 
@@ -113,6 +136,18 @@ describe("classifyOccupant", () => {
       SPONSOR
     );
     expect(result.kind).toBe("foreign");
+  });
+
+  it("attributes foreign sponsored txs to the other sponsor, not the sender", () => {
+    const otherSponsor = "SP3OTHERSPONSORXXXXXXXXXXXXXXXXXXXXXXXXXXXXX";
+    const result = classifyOccupant(
+      hiroTx({ sponsor_address: otherSponsor, sender_address: STRANGER }),
+      SPONSOR
+    );
+    expect(result.kind).toBe("foreign");
+    if (result.kind === "foreign") {
+      expect(result.occupantAddress).toBe(otherSponsor);
+    }
   });
 });
 
@@ -481,5 +516,18 @@ describe("reconcile", () => {
       now: NOW,
     });
     expect(result.adopted).toEqual([]);
+    expect(result.unpriceableOrphans).toEqual([]);
+  });
+
+  it("reports unpriceable orphans rather than adopting at a sentinel fee", () => {
+    const mempool: Record<number, HiroSponsorTxView | null> = {
+      105: hiroTx({ tx_id: TX_ORPHAN, fee_rate: undefined }),
+    };
+    const result = reconcile(makeWallet(), makeLedger(), mempool, SPONSOR, {
+      now: NOW,
+    });
+    expect(result.adopted).toEqual([]);
+    expect(result.unpriceableOrphans).toEqual([105]);
+    expect(result.ledger.entries["105"]).toBeUndefined();
   });
 });
