@@ -143,24 +143,24 @@ describe("rpc schemas", () => {
   });
 
   describe("paymentIdentifier — x402 V2 idempotency parity", () => {
+    const STUB_TX_HEX = "0x" + "ab".repeat(32);
+
     it("accepts a submit request with an optional paymentIdentifier", () => {
       const req = RpcSubmitPaymentRequestSchema.parse({
-        txHex: "0x" + "ab".repeat(32),
+        txHex: STUB_TX_HEX,
         paymentIdentifier: "pay_01JMVP9QE8XA3BDGM5",
       });
       expect(req.paymentIdentifier).toBe("pay_01JMVP9QE8XA3BDGM5");
     });
 
     it("accepts a submit request without paymentIdentifier (backward compat)", () => {
-      const req = RpcSubmitPaymentRequestSchema.parse({
-        txHex: "0x" + "ab".repeat(32),
-      });
+      const req = RpcSubmitPaymentRequestSchema.parse({ txHex: STUB_TX_HEX });
       expect(req.paymentIdentifier).toBeUndefined();
     });
 
     it("rejects a paymentIdentifier shorter than 16 chars", () => {
       const result = RpcSubmitPaymentRequestSchema.safeParse({
-        txHex: "0x" + "ab".repeat(32),
+        txHex: STUB_TX_HEX,
         paymentIdentifier: "short",
       });
       expect(result.success).toBe(false);
@@ -168,7 +168,7 @@ describe("rpc schemas", () => {
 
     it("rejects a paymentIdentifier longer than 128 chars", () => {
       const result = RpcSubmitPaymentRequestSchema.safeParse({
-        txHex: "0x" + "ab".repeat(32),
+        txHex: STUB_TX_HEX,
         paymentIdentifier: "a".repeat(129),
       });
       expect(result.success).toBe(false);
@@ -176,17 +176,17 @@ describe("rpc schemas", () => {
 
     it("rejects a paymentIdentifier with disallowed characters", () => {
       const result = RpcSubmitPaymentRequestSchema.safeParse({
-        txHex: "0x" + "ab".repeat(32),
+        txHex: STUB_TX_HEX,
         paymentIdentifier: "invalid identifier!",
       });
       expect(result.success).toBe(false);
     });
 
-    it("accepts RPC_PAYMENT_IDENTIFIER_CONFLICT as a rejected submit error code", () => {
+    it("accepts PAYMENT_IDENTIFIER_CONFLICT as a rejected submit error code", () => {
       const result = RpcSubmitPaymentResultSchema.parse({
         accepted: false,
         error: "Same paymentIdentifier submitted with a different transaction",
-        code: "RPC_PAYMENT_IDENTIFIER_CONFLICT",
+        code: "PAYMENT_IDENTIFIER_CONFLICT",
         retryable: false,
       });
 
@@ -194,7 +194,7 @@ describe("rpc schemas", () => {
       if (result.accepted) {
         throw new Error("Expected a rejected RPC submit result");
       }
-      expect(result.code).toBe("RPC_PAYMENT_IDENTIFIER_CONFLICT");
+      expect(result.code).toBe("PAYMENT_IDENTIFIER_CONFLICT");
     });
   });
 });
