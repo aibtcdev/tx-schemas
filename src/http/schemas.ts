@@ -5,6 +5,7 @@ import {
   AmountStringSchema,
   IsoDateTimeSchema,
   NonNegativeIntegerSchema,
+  PaymentIdentifierSchema,
   PaymentIdSchema,
   PositiveIntegerSchema,
   StacksAddressSchema,
@@ -45,9 +46,11 @@ export const HTTP_VERIFY_INVALID_REASONS = [
 
 export const HttpVerifyInvalidReasonSchema = z.enum(HTTP_VERIFY_INVALID_REASONS);
 
+// Uses PaymentIdentifierSchema (caller-controlled, [a-zA-Z0-9_-]{16,128}) rather than
+// PaymentIdSchema (relay-assigned, pay_ prefix). The extension id is caller-provided.
 export const HttpPaymentIdentifierExtensionSchema = z.object({
   info: z.object({
-    id: PaymentIdSchema,
+    id: PaymentIdentifierSchema,
   }),
 });
 

@@ -35,3 +35,13 @@ export const NonNegativeIntegerSchema = z
   .nonnegative();
 
 export const UrlSchema = z.string().url();
+
+// Caller-controlled idempotency key for x402 V2 payment-identifier extension.
+// Charset and length match the V2 spec: [a-zA-Z0-9_-]{16,128}.
+// Distinct from PaymentIdSchema (relay-assigned, pay_ prefix); this is caller-provided.
+export const PaymentIdentifierSchema = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9_-]{16,128}$/,
+    "Expected a caller-provided payment identifier: [a-zA-Z0-9_-]{16,128}",
+  );
