@@ -162,7 +162,9 @@ export const CanonicalDomainBoundary = {
     ] as const,
   },
   transportBoundaries: {
-    sharedDomain: ["state", "category", "terminal-reason", "paymentId ownership"] as const,
+    // paymentIdentifier is the shared idempotency input across both transports:
+    // HTTP uses payment-identifier extension; RPC uses paymentIdentifier field.
+    sharedDomain: ["state", "category", "terminal-reason", "paymentId ownership", "paymentIdentifier idempotency"] as const,
     rpc: ["service-binding request/response shapes", "internal relay error codes"] as const,
     http: ["x402 request/response shapes", "polling and error envelopes"] as const,
   },

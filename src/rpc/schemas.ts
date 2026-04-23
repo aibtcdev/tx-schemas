@@ -5,6 +5,7 @@ import {
   AmountStringSchema,
   IsoDateTimeSchema,
   NonNegativeIntegerSchema,
+  PaymentIdentifierSchema,
   PaymentIdSchema,
   PositiveIntegerSchema,
   StacksAddressSchema,
@@ -37,6 +38,7 @@ export const RPC_ERROR_CODES = [
   "BROADCAST_RATE_LIMITED",
   "SENDER_HAND_EXPIRED",
   "NONCE_OCCUPIED",
+  "PAYMENT_IDENTIFIER_CONFLICT",
 ] as const;
 
 export const RpcErrorCodeSchema = z.enum(RPC_ERROR_CODES);
@@ -73,6 +75,8 @@ export const RpcSubmitPaymentWarningSchema = z.object({
 export const RpcSubmitPaymentRequestSchema = z.object({
   txHex: TransactionHexSchema,
   settle: RpcSettleOptionsSchema.optional(),
+  // Caller-controlled idempotency key; see PaymentIdentifierSchema for charset/length constraints.
+  paymentIdentifier: PaymentIdentifierSchema.optional(),
 });
 
 export const RpcSubmitPaymentAcceptedSchema = z.object({
