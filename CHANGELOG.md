@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v1.0.0...tx-schemas-v1.1.0) (2026-04-23)
+
+
+### Features
+
+* **rpc:** add optional paymentIdentifier to RpcSubmitPaymentArgsSchema for V2 parity ([#29](https://github.com/aibtcdev/tx-schemas/issues/29)) ([159ad69](https://github.com/aibtcdev/tx-schemas/commit/159ad69c2019bf847aa8ec7f2f48c31c33182f0a))
+
 ## [1.0.0](https://github.com/aibtcdev/tx-schemas/compare/tx-schemas-v0.8.0...tx-schemas-v1.0.0) (2026-04-15)
 
 
