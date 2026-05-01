@@ -111,6 +111,30 @@
       "types": "./dist/news/beat.d.ts",
       "import": "./dist/news/beat.js"
     },
+    "./identity": {
+      "types": "./dist/identity/index.d.ts",
+      "import": "./dist/identity/index.js"
+    },
+    "./identity/challenge": {
+      "types": "./dist/identity/challenge.d.ts",
+      "import": "./dist/identity/challenge.js"
+    },
+    "./identity/bitcoin-signature": {
+      "types": "./dist/identity/bitcoin-signature.d.ts",
+      "import": "./dist/identity/bitcoin-signature.js"
+    },
+    "./identity/stacks-signature": {
+      "types": "./dist/identity/stacks-signature.d.ts",
+      "import": "./dist/identity/stacks-signature.js"
+    },
+    "./identity/dual-sig": {
+      "types": "./dist/identity/dual-sig.d.ts",
+      "import": "./dist/identity/dual-sig.js"
+    },
+    "./identity/auth-headers": {
+      "types": "./dist/identity/auth-headers.d.ts",
+      "import": "./dist/identity/auth-headers.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

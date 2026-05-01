@@ -16,6 +16,7 @@ npm install @aibtc/tx-schemas zod
 - `@aibtc/tx-schemas/rpc` exports internal relay service-binding schemas
 - `@aibtc/tx-schemas/http` exports external x402 facilitator and polling schemas
 - `@aibtc/tx-schemas/news` exports shared editorial/newsroom schemas, including beat lifecycle transition contracts
+- `@aibtc/tx-schemas/identity` exports shared identity/auth schemas: BIP-322/BIP-137 + SIP-018 signature payloads, dual-sig claims, challenge envelopes, and request auth headers
 
 ## Usage
 
@@ -62,6 +63,7 @@ const settleRequest = HttpSettleRequestSchema.parse({
 - `@aibtc/tx-schemas/rpc`
 - `@aibtc/tx-schemas/http`
 - `@aibtc/tx-schemas/news`
+- `@aibtc/tx-schemas/identity`
 
 ## Schema Rules
 
