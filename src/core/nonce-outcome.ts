@@ -73,6 +73,62 @@ export const NodeBroadcastOutcomeSchema = z.discriminatedUnion("outcome", [
 export type NodeBroadcastOutcome = z.infer<typeof NodeBroadcastOutcomeSchema>;
 
 // ---------------------------------------------------------------------------
+// Local broadcast failures — thrown by @stacks/transactions before any node call
+// ---------------------------------------------------------------------------
+
+const LocalFailureReasonSchema = z.string().min(1);
+
+export const LocalBroadcastFailureSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("auth_type_mismatch"), reason: LocalFailureReasonSchema }),
+  z.object({ kind: z.literal("deserialize_failed"), reason: LocalFailureReasonSchema }),
+  z.object({ kind: z.literal("malformed_bytes"), reason: LocalFailureReasonSchema }),
+  z.object({ kind: z.literal("unknown_local"), reason: LocalFailureReasonSchema }),
+]);
+
+export type LocalBroadcastFailure = z.infer<typeof LocalBroadcastFailureSchema>;
+
+/** A broadcast attempt either reached a node (`node`) or failed locally first (`local`). */
+export const BroadcastAttemptOutcomeSchema = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("node"), node: NodeBroadcastOutcomeSchema }),
+  z.object({ source: z.literal("local"), local: LocalBroadcastFailureSchema }),
+]);
+
+export type BroadcastAttemptOutcome = z.infer<typeof BroadcastAttemptOutcomeSchema>;
+
+/**
+ * Message patterns per kind, measured against @stacks/transactions@7.3.1:
+ * - sponsorTransaction on a standard tx: SigningError "Cannot sponsor sign a non-sponsored transaction"
+ *   (and "Cannot add sponsor to non-sponsored transaction")
+ * - deserializeTransaction("00"): DeserializationError "Could not parse undefined as AuthType";
+ *   deserializeTransaction(""): Error "Could not parse undefined as TransactionVersion"
+ * - deserializeTransaction("zz"): Error "Invalid byte sequence"
+ * "failed to deserialize" / "malformed" are kept from the relay's existing catch block.
+ */
+export const LOCAL_BROADCAST_FAILURE_PATTERNS = {
+  auth_type_mismatch: [/non-sponsored transaction/i],
+  deserialize_failed: [/^Could not parse .+ as /, /failed to deserialize/i],
+  malformed_bytes: [/invalid byte sequence/i, /malformed/i],
+} as const satisfies Record<Exclude<LocalBroadcastFailure["kind"], "unknown_local">, readonly RegExp[]>;
+
+/**
+ * Classify an error thrown while building, signing or serializing a transaction.
+ * Returns null for anything unrecognised so the caller's existing handling still applies.
+ */
+export function parseLocalBroadcastFailure(err: unknown): LocalBroadcastFailure | null {
+  const reason = err instanceof Error ? err.message : String(err);
+  if (!reason) return null;
+  if (err instanceof Error && err.name === "DeserializationError") {
+    return { kind: "deserialize_failed", reason };
+  }
+  for (const kind of ["auth_type_mismatch", "deserialize_failed", "malformed_bytes"] as const) {
+    if (LOCAL_BROADCAST_FAILURE_PATTERNS[kind].some((re) => re.test(reason))) {
+      return { kind, reason };
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Hiro polling outcomes — categorised transaction statuses from Hiro API
 // ---------------------------------------------------------------------------
 
