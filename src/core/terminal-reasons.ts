@@ -97,6 +97,11 @@ export const TERMINAL_REASON_TO_CATEGORY = {
 
 export const paymentTerminalReasonCategoryByReason = TERMINAL_REASON_TO_CATEGORY;
 
+// `failed` is terminal at the relay: it does not retry a failed paymentId, and a
+// resubmission of the same transaction is issued a new paymentId. So for the `relay`
+// and `settlement` categories, `bounded-retry-same-payment` means "resubmit the same
+// signed payment", not "keep polling the same paymentId". The token is kept as-is
+// for downstream compatibility.
 export const TERMINAL_REASON_CATEGORY_HANDLING = {
   validation: {
     recoveryOwner: "sender",
@@ -111,12 +116,12 @@ export const TERMINAL_REASON_CATEGORY_HANDLING = {
   relay: {
     recoveryOwner: "relay",
     clientAction: "bounded-retry-same-payment",
-    guidance: "Retry only with bounded relay-owned recovery against the same paymentId.",
+    guidance: "A failed paymentId is terminal and the relay does not retry it. Only if the failure is marked retryable, resubmit the same signed transaction and poll the new paymentId the relay returns. Do not re-sign while the original transaction may still land. The caller owns the bound: count resubmissions, not polls of the failed paymentId.",
   },
   settlement: {
     recoveryOwner: "relay",
     clientAction: "bounded-retry-same-payment",
-    guidance: "Treat broadcast and settlement failures as relay-owned recovery on the same paymentId unless sender repair is explicitly required.",
+    guidance: "A failed paymentId is terminal and the relay does not retry it. If the broadcast or settlement failure is marked retryable, resubmit the same signed transaction and poll the new paymentId the relay returns. Do not re-sign while the original transaction may still land; rebuild only if sender repair is explicitly required. The caller owns the bound: count resubmissions, not polls of the failed paymentId.",
   },
   replacement: {
     recoveryOwner: "caller",

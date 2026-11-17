@@ -108,4 +108,25 @@ describe("core payment semantics", () => {
       "restart-higher-level-flow-with-new-payment-identity",
     );
   });
+
+  // #34: a `failed` record is terminal at the relay. The queue consumer skips it and a
+  // resubmission of the same transaction is issued a new paymentId, so recovery can't
+  // happen "on the same paymentId". It happens by resubmitting the same signed transaction.
+  it.each(["relay", "settlement"] as const)(
+    "%s guidance recovers by resubmitting the same signed transaction, not by re-polling the failed paymentId",
+    (category) => {
+      const { recoveryOwner, clientAction, guidance } =
+        TERMINAL_REASON_CATEGORY_HANDLING[category];
+      // Unchanged for downstream compatibility.
+      expect(recoveryOwner).toBe("relay");
+      expect(clientAction).toBe("bounded-retry-same-payment");
+
+      expect(guidance).not.toMatch(/on the same paymentId|against the same paymentId/);
+      expect(guidance).toContain("same signed transaction");
+      expect(guidance).toContain("new paymentId");
+      expect(guidance).toMatch(/do not re-sign/i);
+      // The bound counts the caller's resubmissions, not polls of the failed paymentId.
+      expect(guidance).toMatch(/caller/i);
+    },
+  );
 });

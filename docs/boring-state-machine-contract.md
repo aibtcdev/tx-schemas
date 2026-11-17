@@ -25,6 +25,7 @@ Notes:
 - `paymentId` is relay-owned.
 - `payment-identifier` is a client-supplied idempotency input only. It is not a public polling identity and must never be surfaced or reconstructed as canonical `paymentId`.
 - Duplicate submission of the same already-known payment artifact should reuse the same `paymentId` until that payment reaches a terminal state.
+- After a terminal state, including `failed`, the old `paymentId` is not reused: a resubmission of the same artifact is a new payment with a new `paymentId`.
 - Accepted duplicate submit responses should return the current caller-facing in-flight status for that reused `paymentId`: `queued`, `broadcasting`, or `mempool` as applicable.
 - Internal and external polling should both treat `paymentId` as the stable handle for in-flight and terminal lookup.
 - `checkStatusUrl` is an additive canonical poll hint for the same relay-owned lifecycle.
@@ -78,10 +79,14 @@ Relay-owned responsibilities:
 | --- | --- | --- |
 | `validation` | sender | stop and fix the request or signed transaction |
 | `sender` | sender | rebuild and re-sign a new payment |
-| `relay` | relay | use bounded retry on the same `paymentId` only when the adapter marks it retryable |
-| `settlement` | relay | treat broadcast or settlement failures as relay-owned recovery on the same `paymentId` unless sender repair is explicitly required |
+| `relay` | relay | only when the adapter marks it retryable: resubmit the *same signed transaction*; the relay returns a new `paymentId`; do not re-sign while the original may still land |
+| `settlement` | relay | if marked retryable, resubmit the *same signed transaction* and follow the new `paymentId`; do not re-sign while the original may still land; rebuild only if sender repair is explicitly required |
 | `replacement` | caller | stop polling the old `paymentId`; decide the next action explicitly |
 | `identity` | caller | the old identity is gone; restart the higher-level flow with a new payment and never invent a replacement `paymentId` |
+
+For the `relay` and `settlement` rows, "relay" owns recovery only while the payment is in flight. Any relay retries happen before the record turns `failed` and do not change its `paymentId`. Once the relay reports `failed`, that `paymentId` is terminal: the relay does not retry it, and polling it will not change the outcome. A resubmission of the same transaction is a new payment with a new `paymentId` (see Identity and Duplicate Handling). The bound on these resubmissions belongs to the caller: count resubmissions, not polls of the failed `paymentId`. Re-sending the same signed transaction is also the nonce-safe choice, because at most one copy can confirm. If the original submit carried a `payment-identifier`, send a new one (or none) with the resubmission: within its idempotency window the relay answers a repeated `payment-identifier` with the cached original acceptance, which names the failed `paymentId`.
+
+The exported `clientAction` token for both rows stays `bounded-retry-same-payment`. Here "same payment" means the same signed transaction, not the same `paymentId`.
 
 ## Compatibility Notes
 
@@ -120,7 +125,7 @@ Downstream repos should import these constants from `@aibtc/tx-schemas` rather t
 | Sender nonce gap before canonical acceptance | `failed` | `sender_nonce_gap` | do not deliver | rebuild or submit missing nonce |
 | Accepted payment blocked on sender nonce gap | `queued` | | do not deliver | keep polling the same `paymentId`; use hold or wedge diagnostics to decide whether to submit missing nonces or escalate |
 | Invalid transaction | `failed` | `invalid_transaction` | do not deliver | stop |
-| Sponsor/relay internal failure | `failed` | `queue_unavailable`, `sponsor_failure`, or `internal_error` | do not deliver | bounded retry only if adapter marks retryable |
-| Broadcast failure | `failed` | `broadcast_failure` or `chain_abort` | do not deliver | treat as failed; rebuild only if caller owns sender recovery |
+| Sponsor/relay internal failure | `failed` | `queue_unavailable`, `sponsor_failure`, or `internal_error` | do not deliver | only if adapter marks retryable: bounded resubmission of the same signed transaction, polled under the new `paymentId` |
+| Broadcast failure | `failed` | `broadcast_failure` or `chain_abort` | do not deliver | treat as failed; if marked retryable, resubmit the same signed transaction under a new `paymentId`; rebuild only if caller owns sender recovery |
 | Nonce replacement | `replaced` | `nonce_replacement` or `superseded` | do not deliver | stop polling old `paymentId`; decide next client action explicitly |
 | Missing or expired identity | `not_found` | `expired` or `unknown_payment_identity` | do not deliver | old identity is gone; restart the higher-level flow with a new payment and never retry the old `paymentId` |
