@@ -78,10 +78,12 @@ Relay-owned responsibilities:
 | --- | --- | --- |
 | `validation` | sender | stop and fix the request or signed transaction |
 | `sender` | sender | rebuild and re-sign a new payment |
-| `relay` | relay | use bounded retry on the same `paymentId` only when the adapter marks it retryable |
-| `settlement` | relay | treat broadcast or settlement failures as relay-owned recovery on the same `paymentId` unless sender repair is explicitly required |
+| `relay` | relay | only when the adapter marks it retryable: resubmit the same signed transaction, a bounded number of times; the relay may return a new `paymentId`, so poll the id it returns; do not re-sign while the original may still land |
+| `settlement` | relay | unless sender repair is explicitly required: resubmit the same signed transaction (bounded, as for `relay`) and follow the `paymentId` the relay returns; a `failed` record does not recover under its old `paymentId` |
 | `replacement` | caller | stop polling the old `paymentId`; decide the next action explicitly |
 | `identity` | caller | the old identity is gone; restart the higher-level flow with a new payment and never invent a replacement `paymentId` |
+
+A `failed` record is terminal: the relay does not requeue it under the same `paymentId`, and resubmitting the same signed transaction after that creates a new `paymentId`. The retry bound in the `relay` and `settlement` rows counts caller resubmissions, not polls of the old id. Resubmitting the identical signed transaction is nonce-safe: at most one copy can confirm.
 
 ## Compatibility Notes
 

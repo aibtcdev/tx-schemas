@@ -111,12 +111,12 @@ export const TERMINAL_REASON_CATEGORY_HANDLING = {
   relay: {
     recoveryOwner: "relay",
     clientAction: "bounded-retry-same-payment",
-    guidance: "Retry only with bounded relay-owned recovery against the same paymentId.",
+    guidance: "If retryable, resubmit the same signed transaction a bounded number of times and poll the paymentId the relay returns; a failed paymentId does not recover.",
   },
   settlement: {
     recoveryOwner: "relay",
     clientAction: "bounded-retry-same-payment",
-    guidance: "Treat broadcast and settlement failures as relay-owned recovery on the same paymentId unless sender repair is explicitly required.",
+    guidance: "Unless sender repair is required, resubmit the same signed transaction (bounded) and poll the paymentId the relay returns; do not re-sign while the original may still land.",
   },
   replacement: {
     recoveryOwner: "caller",
