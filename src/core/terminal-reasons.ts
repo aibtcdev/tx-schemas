@@ -97,6 +97,11 @@ export const TERMINAL_REASON_TO_CATEGORY = {
 
 export const paymentTerminalReasonCategoryByReason = TERMINAL_REASON_TO_CATEGORY;
 
+// `failed` is terminal at the relay: it does not retry a failed paymentId, and a
+// resubmission of the same transaction is issued a new paymentId. So for the `relay`
+// and `settlement` categories, `bounded-retry-same-payment` means "resubmit the same
+// signed payment", not "keep polling the same paymentId". The token is kept as-is
+// for downstream compatibility.
 export const TERMINAL_REASON_CATEGORY_HANDLING = {
   validation: {
     recoveryOwner: "sender",
@@ -106,17 +111,17 @@ export const TERMINAL_REASON_CATEGORY_HANDLING = {
   sender: {
     recoveryOwner: "sender",
     clientAction: "rebuild-signed-payment",
-    guidance: "Build and sign a new payment after correcting sender nonce state.",
+    guidance: "Build and sign a new payment after correcting sender nonce state. If this failure is on a resubmission of an earlier failed payment, first look up the original txid on chain: if it confirmed, the payment already happened, even though the old paymentId still reads failed.",
   },
   relay: {
     recoveryOwner: "relay",
     clientAction: "bounded-retry-same-payment",
-    guidance: "Retry only with bounded relay-owned recovery against the same paymentId.",
+    guidance: "A failed paymentId is terminal and the relay does not retry it. Only if the failure is marked retryable (an absent retryable means not retryable), resubmit the same signed transaction and poll the new paymentId the relay returns. Send a new payment-identifier, or none, with the resubmission: a repeated one returns the cached acceptance for the failed paymentId. Do not re-sign while the original transaction may still land. The caller owns the bound: count resubmissions, not polls of the failed paymentId.",
   },
   settlement: {
     recoveryOwner: "relay",
     clientAction: "bounded-retry-same-payment",
-    guidance: "Treat broadcast and settlement failures as relay-owned recovery on the same paymentId unless sender repair is explicitly required.",
+    guidance: "A failed paymentId is terminal and the relay does not retry it. Only if the broadcast or settlement failure is marked retryable (an absent retryable means not retryable), resubmit the same signed transaction and poll the new paymentId the relay returns. Send a new payment-identifier, or none, with the resubmission: a repeated one returns the cached acceptance for the failed paymentId. Never resubmit after chain_abort: the transaction was mined and its nonce is spent, so rebuild and re-sign only if the payment is still wanted. Do not re-sign while the original transaction may still land; rebuild only if sender repair is explicitly required. The caller owns the bound: count resubmissions, not polls of the failed paymentId.",
   },
   replacement: {
     recoveryOwner: "caller",

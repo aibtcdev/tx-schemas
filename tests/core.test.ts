@@ -9,6 +9,7 @@ import {
   ProtectedResourceDeliverableStateSchema,
   RELAY_LIFECYCLE_BRIDGE,
   TERMINAL_REASON_CATEGORY_HANDLING,
+  TERMINAL_REASON_TO_CATEGORY,
   TerminalReasonSchema,
   TERMINAL_REASON_TO_STATE,
 } from "../src/index.js";
@@ -107,5 +108,48 @@ describe("core payment semantics", () => {
     expect(TERMINAL_REASON_CATEGORY_HANDLING.identity.clientAction).toBe(
       "restart-higher-level-flow-with-new-payment-identity",
     );
+  });
+
+  // #34: a `failed` record is terminal at the relay. The queue consumer skips it and a
+  // resubmission of the same transaction is issued a new paymentId, so recovery can't
+  // happen "on the same paymentId". It happens by resubmitting the same signed transaction.
+  it.each(["relay", "settlement"] as const)(
+    "%s guidance recovers by resubmitting the same signed transaction, not by re-polling the failed paymentId",
+    (category) => {
+      const { recoveryOwner, clientAction, guidance } =
+        TERMINAL_REASON_CATEGORY_HANDLING[category];
+      // Unchanged for downstream compatibility.
+      expect(recoveryOwner).toBe("relay");
+      expect(clientAction).toBe("bounded-retry-same-payment");
+
+      expect(guidance).not.toMatch(/on the same paymentId|against the same paymentId/);
+      expect(guidance).toContain("same signed transaction");
+      expect(guidance).toContain("new paymentId");
+      expect(guidance).toMatch(/do not re-sign/i);
+      // The bound counts the caller's resubmissions, not polls of the failed paymentId.
+      expect(guidance).toMatch(/caller/i);
+      // A repeated payment-identifier replays the cached acceptance of the failed paymentId.
+      expect(guidance).toMatch(/new payment-identifier, or none/);
+      // An absent `retryable` must not be read as permission to resubmit.
+      expect(guidance).toMatch(/absent retryable means not retryable/);
+    },
+  );
+
+  it("settlement guidance never resubmits after chain_abort (nonce already spent)", () => {
+    expect(TERMINAL_REASON_TO_CATEGORY.chain_abort).toBe("settlement");
+    expect(TERMINAL_REASON_CATEGORY_HANDLING.settlement.guidance).toMatch(
+      /never resubmit after chain_abort/i,
+    );
+  });
+
+  it("sender guidance checks the original txid before rebuilding a failed resubmission", () => {
+    // A broadcast_failure can be recorded after the tx reached the mempool. If the original
+    // confirms, the resubmission fails sender_nonce_stale/_duplicate; rebuilding would pay twice.
+    expect(TERMINAL_REASON_TO_CATEGORY.sender_nonce_stale).toBe("sender");
+    expect(TERMINAL_REASON_TO_CATEGORY.sender_nonce_duplicate).toBe("sender");
+    const { clientAction, guidance } = TERMINAL_REASON_CATEGORY_HANDLING.sender;
+    expect(clientAction).toBe("rebuild-signed-payment");
+    expect(guidance).toMatch(/resubmission/);
+    expect(guidance).toMatch(/original txid on chain/);
   });
 });
