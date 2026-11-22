@@ -55,7 +55,7 @@ export const SenderQueueEntrySchema = z
     expiryNotified: z.boolean(),
   })
   .superRefine((entry, ctx) => {
-    if (entry.expiresAt <= entry.insertedAt) {
+    if (Date.parse(entry.expiresAt) <= Date.parse(entry.insertedAt)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["expiresAt"],

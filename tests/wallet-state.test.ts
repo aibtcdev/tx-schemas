@@ -498,6 +498,26 @@ describe("SenderQueueEntrySchema", () => {
       expect(result.data.expiryNotified).toBe(true);
     }
   });
+
+  it("compares expiresAt and insertedAt as instants across offsets", () => {
+    const valid = SenderQueueEntrySchema.safeParse({
+      senderNonce: 5,
+      insertedAt: "2026-01-01T12:00:00+14:00",
+      expiresAt: "2026-01-01T00:30:00Z",
+      state: "held",
+      expiryNotified: false,
+    });
+    expect(valid.success).toBe(true);
+
+    const invalid = SenderQueueEntrySchema.safeParse({
+      senderNonce: 5,
+      insertedAt: "2026-01-01T00:30:00Z",
+      expiresAt: "2026-01-01T12:00:00+14:00",
+      state: "held",
+      expiryNotified: false,
+    });
+    expect(invalid.success).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
