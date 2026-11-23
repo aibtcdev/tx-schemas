@@ -50,6 +50,26 @@ const settleRequest = HttpSettleRequestSchema.parse({
 });
 ```
 
+### Classifying local broadcast failures
+
+Errors thrown by `@stacks/transactions` before a transaction reaches a node (malformed hex, sponsor-signing a standard tx) can be classified instead of string-matched. Pass only errors from those local calls: the patterns match the library's exact wording, and node or API errors belong to `NodeBroadcastOutcome`.
+
+```ts
+import { parseLocalBroadcastFailure } from "@aibtc/tx-schemas/core/nonce-outcome";
+
+try {
+  // deserializeTransaction(hex) / sponsorTransaction(...)
+} catch (e) {
+  const local = parseLocalBroadcastFailure(e); // null when the error isn't a known local failure
+  if (local) {
+    // local.kind: "auth_type_mismatch" | "deserialize_failed" | "malformed_bytes"
+    // retire the queued entry: retrying a broken transaction never succeeds
+  }
+  // The schema also has "unknown_local", which the parser never returns: build it yourself
+  // ({ kind: "unknown_local", reason }) when you want to record an unclassified local error.
+}
+```
+
 ## Subpath Imports
 
 - `@aibtc/tx-schemas`
@@ -59,6 +79,7 @@ const settleRequest = HttpSettleRequestSchema.parse({
 - `@aibtc/tx-schemas/core/primitives`
 - `@aibtc/tx-schemas/terminal-reasons`
 - `@aibtc/tx-schemas/core/terminal-reasons`
+- `@aibtc/tx-schemas/core/nonce-outcome`
 - `@aibtc/tx-schemas/rpc`
 - `@aibtc/tx-schemas/http`
 - `@aibtc/tx-schemas/news`
