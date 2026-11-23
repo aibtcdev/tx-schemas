@@ -78,7 +78,7 @@ const settleRequest = HttpSettleRequestSchema.parse({
 - Polling contracts may surface `checkStatusUrl` as an additive convenience field, and internal/external polling should treat it as another way to reach the same `paymentId` lifecycle.
 - If a downstream consumer has neither relay `paymentId` nor canonical `checkStatusUrl`, it must fail closed instead of inventing a polling identity.
 - Terminal polling responses should carry a normalized `terminalReason` when one is known, even if transports also emit local error codes.
-- Machine-readable contract exports for downstream repos include `CanonicalDomainBoundary`, `CANONICAL_POLLING_IDENTITY_FIELDS`, `RELAY_LIFECYCLE_BRIDGE`, and `TERMINAL_REASON_CATEGORY_HANDLING`.
+- Machine-readable contract exports for downstream repos include `CanonicalDomainBoundary`, `CANONICAL_POLLING_IDENTITY_FIELDS`, `RELAY_LIFECYCLE_BRIDGE`, `TERMINAL_REASON_CATEGORY_HANDLING`, and `TERMINAL_REASON_HANDLING` (per reason, with exceptions such as `chain_abort` applied).
 
 More detail lives in [docs/package-schemas.md](docs/package-schemas.md),
 [docs/boring-state-machine-contract.md](docs/boring-state-machine-contract.md),
