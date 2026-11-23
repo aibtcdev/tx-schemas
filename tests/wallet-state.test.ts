@@ -498,6 +498,60 @@ describe("SenderQueueEntrySchema", () => {
       expect(result.data.expiryNotified).toBe(true);
     }
   });
+
+  it("compares expiresAt and insertedAt as instants across offsets", () => {
+    const valid = SenderQueueEntrySchema.safeParse({
+      senderNonce: 5,
+      insertedAt: "2026-01-01T12:00:00+14:00",
+      expiresAt: "2026-01-01T00:30:00Z",
+      state: "held",
+      expiryNotified: false,
+    });
+    expect(valid.success).toBe(true);
+
+    const invalid = SenderQueueEntrySchema.safeParse({
+      senderNonce: 5,
+      insertedAt: "2026-01-01T00:30:00Z",
+      expiresAt: "2026-01-01T12:00:00+14:00",
+      state: "held",
+      expiryNotified: false,
+    });
+    expect(invalid.success).toBe(false);
+  });
+
+  it("rejects entries with an unparsable timestamp form", () => {
+    // "+05" (hours-only offset) is rejected before superRefine runs; the
+    // NaN guard in superRefine is defense-in-depth for any future schema
+    // relaxation that admits a Date.parse-incompatible form.
+    const result = SenderQueueEntrySchema.safeParse({
+      senderNonce: 5,
+      insertedAt: "2026-01-01T12:00:00+05",
+      expiresAt: "2026-01-01T00:00:00Z",
+      state: "held",
+      expiryNotified: false,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("orders sub-millisecond instants correctly", () => {
+    const later = SenderQueueEntrySchema.safeParse({
+      senderNonce: 5,
+      insertedAt: "2026-04-06T10:00:00.0001Z",
+      expiresAt: "2026-04-06T10:00:00.0009Z",
+      state: "held",
+      expiryNotified: false,
+    });
+    expect(later.success).toBe(true);
+
+    const earlier = SenderQueueEntrySchema.safeParse({
+      senderNonce: 5,
+      insertedAt: "2026-04-06T10:00:00.0009Z",
+      expiresAt: "2026-04-06T10:00:00.0001Z",
+      state: "held",
+      expiryNotified: false,
+    });
+    expect(earlier.success).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------
