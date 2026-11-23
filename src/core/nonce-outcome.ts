@@ -131,10 +131,16 @@ const NetworkResponsibilitySchema = z.object({
   retryAfterMs: PositiveIntegerSchema,
 });
 
+const RelayResponsibilitySchema = z.object({
+  responsible: z.literal("relay"),
+  action: z.enum(["retire", "alert_for_review"]),
+});
+
 export const BroadcastResponsibilitySchema = z.discriminatedUnion("responsible", [
   SenderResponsibilitySchema,
   SponsorResponsibilitySchema,
   NetworkResponsibilitySchema,
+  RelayResponsibilitySchema,
 ]);
 
 export type BroadcastResponsibility = z.infer<typeof BroadcastResponsibilitySchema>;
