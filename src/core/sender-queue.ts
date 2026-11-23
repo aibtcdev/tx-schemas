@@ -46,6 +46,23 @@ export type SenderFrontier = z.infer<typeof SenderFrontierSchema>;
 
 const QUEUE_ENTRY_STATES = ["held", "ready", "dispatching", "expired"] as const;
 
+// Extract the fractional-second digits of an ISO timestamp ("" when absent).
+function fractionalSeconds(iso: string): string {
+  const match = iso.match(/\.(\d+)/);
+  return match?.[1] ?? "";
+}
+
+// Compare two fractional-second strings as decimal fractions (0.xxxx).
+function compareFractionalSeconds(a: string, b: string): number {
+  const fa = fractionalSeconds(a);
+  const fb = fractionalSeconds(b);
+  const len = Math.max(fa.length, fb.length);
+  const pa = fa.padEnd(len, "0");
+  const pb = fb.padEnd(len, "0");
+  if (pa === pb) return 0;
+  return pa > pb ? 1 : -1;
+}
+
 export const SenderQueueEntrySchema = z
   .object({
     senderNonce: NonNegativeIntegerSchema,
@@ -55,7 +72,33 @@ export const SenderQueueEntrySchema = z
     expiryNotified: z.boolean(),
   })
   .superRefine((entry, ctx) => {
-    if (Date.parse(entry.expiresAt) <= Date.parse(entry.insertedAt)) {
+    const insertedMs = Date.parse(entry.insertedAt);
+    const expiresMs = Date.parse(entry.expiresAt);
+    if (Number.isNaN(insertedMs)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["insertedAt"],
+        message: "insertedAt must be a parseable timestamp",
+      });
+      return;
+    }
+    if (Number.isNaN(expiresMs)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["expiresAt"],
+        message: "expiresAt must be a parseable timestamp",
+      });
+      return;
+    }
+    // Date.parse truncates to milliseconds while IsoDateTimeSchema accepts
+    // arbitrary fractional-second digits, so break millisecond ties on the
+    // raw fraction (timezone offsets carry no sub-minute component, so the
+    // local fraction equals the instant's fraction).
+    let expiresAfter = expiresMs > insertedMs;
+    if (expiresMs === insertedMs) {
+      expiresAfter = compareFractionalSeconds(entry.expiresAt, entry.insertedAt) > 0;
+    }
+    if (!expiresAfter) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["expiresAt"],
