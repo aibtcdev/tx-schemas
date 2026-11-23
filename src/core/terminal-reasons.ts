@@ -99,9 +99,12 @@ export const paymentTerminalReasonCategoryByReason = TERMINAL_REASON_TO_CATEGORY
 
 // `failed` is terminal at the relay: it does not retry a failed paymentId, and a
 // resubmission of the same transaction is issued a new paymentId. So for the `relay`
-// and `settlement` categories, `bounded-retry-same-payment` means "resubmit the same
-// signed payment", not "keep polling the same paymentId". The token is kept as-is
-// for downstream compatibility.
+// and `settlement` categories the caller owns recovery once the record is `failed`,
+// and the action is `resubmit-same-signed-tx` (this replaced `bounded-retry-same-payment`,
+// which read as "the relay retries the same paymentId").
+//
+// This table is the default per category. Some reasons need a different action than
+// their category: read `TERMINAL_REASON_HANDLING[reason]`, which applies those exceptions.
 export const TERMINAL_REASON_CATEGORY_HANDLING = {
   validation: {
     recoveryOwner: "sender",
@@ -111,17 +114,17 @@ export const TERMINAL_REASON_CATEGORY_HANDLING = {
   sender: {
     recoveryOwner: "sender",
     clientAction: "rebuild-signed-payment",
-    guidance: "Build and sign a new payment after correcting sender nonce state. If this failure is on a resubmission of an earlier failed payment, first look up the original txid on chain: if it confirmed, the payment already happened, even though the old paymentId still reads failed.",
+    guidance: "Build and sign a new payment after correcting sender nonce state. If this failure is on a resubmission of an earlier failed payment, first look up the sender's transaction at the signed sender nonce (sender address + nonce; the relay sponsors each copy separately, so the txid differs between copies). If it is pending, do not rebuild; wait for it to resolve. If it confirmed successfully, the payment already happened, even though the old paymentId still reads failed.",
   },
   relay: {
-    recoveryOwner: "relay",
-    clientAction: "bounded-retry-same-payment",
-    guidance: "A failed paymentId is terminal and the relay does not retry it. Only if the failure is marked retryable (an absent retryable means not retryable), resubmit the same signed transaction and poll the new paymentId the relay returns. Send a new payment-identifier, or none, with the resubmission: a repeated one returns the cached acceptance for the failed paymentId. Do not re-sign while the original transaction may still land. The caller owns the bound: count resubmissions, not polls of the failed paymentId.",
+    recoveryOwner: "caller",
+    clientAction: "resubmit-same-signed-tx",
+    guidance: "A failed paymentId is terminal and the relay does not retry it. Only if the failure is marked retryable (an absent retryable means not retryable), resubmit the same signed transaction and poll the new paymentId the relay returns. If the resubmission is rejected, no paymentId is returned: count it toward the bound and do not poll. Send a new payment-identifier, or none, with the resubmission: a repeated one returns the cached acceptance for the failed paymentId. Do not re-sign while the original transaction may still land. The caller owns the bound: count resubmissions, not polls of the failed paymentId.",
   },
   settlement: {
-    recoveryOwner: "relay",
-    clientAction: "bounded-retry-same-payment",
-    guidance: "A failed paymentId is terminal and the relay does not retry it. Only if the broadcast or settlement failure is marked retryable (an absent retryable means not retryable), resubmit the same signed transaction and poll the new paymentId the relay returns. Send a new payment-identifier, or none, with the resubmission: a repeated one returns the cached acceptance for the failed paymentId. Never resubmit after chain_abort: the transaction was mined and its nonce is spent, so rebuild and re-sign only if the payment is still wanted. Do not re-sign while the original transaction may still land; rebuild only if sender repair is explicitly required. The caller owns the bound: count resubmissions, not polls of the failed paymentId.",
+    recoveryOwner: "caller",
+    clientAction: "resubmit-same-signed-tx",
+    guidance: "A failed paymentId is terminal and the relay does not retry it. Only if the broadcast or settlement failure is marked retryable (an absent retryable means not retryable), resubmit the same signed transaction and poll the new paymentId the relay returns. If the resubmission is rejected, no paymentId is returned: count it toward the bound and do not poll. Send a new payment-identifier, or none, with the resubmission: a repeated one returns the cached acceptance for the failed paymentId. Before any rebuild, check whether the original may still land: look up the sender's transaction at the signed sender nonce; if it is pending, wait; if it confirmed successfully, the payment happened. Rebuild only if no copy at that nonce is pending or successfully confirmed, and the caller owns sender recovery. chain_abort is an exception with its own handling (see TERMINAL_REASON_HANDLING). The caller owns the bound: count resubmissions, not polls of the failed paymentId.",
   },
   replacement: {
     recoveryOwner: "caller",
@@ -141,6 +144,35 @@ export const TERMINAL_REASON_CATEGORY_HANDLING = {
     guidance: string;
   }
 >;
+
+type HandlingEntry = { recoveryOwner: string; clientAction: string; guidance: string };
+
+// Reasons whose handling differs from their category's default.
+export const TERMINAL_REASON_HANDLING_EXCEPTIONS = {
+  // Grouped under `settlement`, but the transaction was mined and aborted: its sender
+  // nonce is spent, so an identical copy can never confirm. Resubmitting is never right.
+  chain_abort: {
+    recoveryOwner: "sender",
+    clientAction: "rebuild-signed-payment",
+    guidance: "The transaction was mined and aborted, so its sender nonce is spent and the payment did not happen. Never resubmit it, whatever retryable says. Rebuild and re-sign a new payment only if the payment is still wanted.",
+  },
+} as const satisfies Partial<Record<(typeof TERMINAL_REASONS)[number], HandlingEntry>>;
+
+const handlingExceptions: Partial<Record<(typeof TERMINAL_REASONS)[number], HandlingEntry>> =
+  TERMINAL_REASON_HANDLING_EXCEPTIONS;
+
+// Handling per terminal reason: the category default, with the exceptions above applied.
+// Code that acts on a terminal reason should read this table, not the category table.
+export const TERMINAL_REASON_HANDLING = Object.fromEntries(
+  TERMINAL_REASONS.map((reason) => [
+    reason,
+    handlingExceptions[reason] ?? TERMINAL_REASON_CATEGORY_HANDLING[TERMINAL_REASON_TO_CATEGORY[reason]],
+  ]),
+) as {
+  readonly [R in (typeof TERMINAL_REASONS)[number]]: R extends keyof typeof TERMINAL_REASON_HANDLING_EXCEPTIONS
+    ? (typeof TERMINAL_REASON_HANDLING_EXCEPTIONS)[R]
+    : (typeof TERMINAL_REASON_CATEGORY_HANDLING)[(typeof TERMINAL_REASON_TO_CATEGORY)[R]];
+};
 
 export const TerminalReasonDetailSchema = z.object({
   reason: TerminalReasonSchema,
