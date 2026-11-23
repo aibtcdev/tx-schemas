@@ -1,5 +1,6 @@
 export * from "./enums.js";
 export * from "./hiro-tx.js";
+export * from "./local-broadcast-failure.js";
 export * from "./nonce-outcome.js";
 export * from "./payment.js";
 export * from "./primitives.js";
