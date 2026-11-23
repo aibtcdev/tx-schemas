@@ -104,24 +104,55 @@ export type BroadcastAttemptOutcome = z.infer<typeof BroadcastAttemptOutcomeSche
  * - deserializeTransaction("zz"): Error "Invalid byte sequence"
  * "failed to deserialize" / "malformed" are kept from the relay's existing catch block.
  */
+// Exact wording of the errors @stacks/transactions 7.x and @stacks/common throw while building,
+// signing or deserializing a transaction. Anchored so that unrelated errors that merely mention
+// "malformed" or "deserialize" (an API response, a node 400 rethrown in the same try) never match.
+const DECODED_ENUMS = "AddressHashMode|AnchorMode|AuthType|PostConditionMode|PubKeyEncoding|TransactionVersion";
 export const LOCAL_BROADCAST_FAILURE_PATTERNS = {
-  auth_type_mismatch: [/non-sponsored transaction/i],
-  deserialize_failed: [/^Could not parse .+ as /, /failed to deserialize/i],
-  malformed_bytes: [/invalid byte sequence/i, /malformed/i],
+  // SigningError from sponsorTransaction / TransactionSigner.signSponsor
+  auth_type_mismatch: [/^Cannot (?:add sponsor to|sponsor sign a) non-sponsored transaction$/],
+  // plain Error from the enum decoders used while deserializing transaction bytes
+  deserialize_failed: [new RegExp(`^Could not parse \\S+ as (?:${DECODED_ENUMS})$`)],
+  // plain Error from @stacks/common hexToBytes
+  malformed_bytes: [/^Invalid byte sequence$/],
 } as const satisfies Record<Exclude<LocalBroadcastFailure["kind"], "unknown_local">, readonly RegExp[]>;
 
+/** Read `name` and `message` from anything error-shaped, including errors from another realm or a
+ *  plain object that crossed a worker boundary. Never throws. */
+function errorFields(err: unknown): { name: string; message: string } | null {
+  try {
+    if (typeof err === "string") return { name: "", message: err };
+    if (err && typeof err === "object") {
+      const e = err as { name?: unknown; message?: unknown };
+      return {
+        name: typeof e.name === "string" ? e.name : "",
+        message: typeof e.message === "string" ? e.message : "",
+      };
+    }
+  } catch {
+    // a getter that throws: treat as unrecognised
+  }
+  return null;
+}
+
 /**
- * Classify an error thrown while building, signing or serializing a transaction.
- * Returns null for anything unrecognised so the caller's existing handling still applies.
+ * Classify an error thrown while building, signing or serializing a transaction LOCALLY
+ * (`makeContractCall`, `sponsorTransaction`, `deserializeTransaction`, ...). Pass only errors from
+ * those calls: node or API errors belong to `NodeBroadcastOutcome`. Returns null for anything
+ * unrecognised, so the caller's existing handling still applies; `unknown_local` is for callers
+ * that want to record such an error explicitly.
  */
 export function parseLocalBroadcastFailure(err: unknown): LocalBroadcastFailure | null {
-  const reason = err instanceof Error ? err.message : String(err);
-  if (!reason) return null;
-  if (err instanceof Error && err.name === "DeserializationError") {
-    return { kind: "deserialize_failed", reason };
+  const f = errorFields(err);
+  if (!f) return null;
+  // `reason` must be non-empty: fall back to the error name for an empty message.
+  const reason = f.message || f.name;
+  if (f.name === "DeserializationError") {
+    return { kind: "deserialize_failed", reason: reason || "DeserializationError" };
   }
+  if (!reason) return null;
   for (const kind of ["auth_type_mismatch", "deserialize_failed", "malformed_bytes"] as const) {
-    if (LOCAL_BROADCAST_FAILURE_PATTERNS[kind].some((re) => re.test(reason))) {
+    if (LOCAL_BROADCAST_FAILURE_PATTERNS[kind].some((re) => re.test(f.message))) {
       return { kind, reason };
     }
   }

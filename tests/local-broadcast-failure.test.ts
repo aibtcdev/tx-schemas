@@ -5,7 +5,8 @@ import {
   parseLocalBroadcastFailure,
 } from "../src/index.js";
 
-// Messages captured from @stacks/transactions@7.3.1 (see LOCAL_BROADCAST_FAILURE_PATTERNS).
+// Messages copied from the throw sites in @stacks/transactions 7.7.0 (SigningError, DeserializationError,
+// the enum decoders) and @stacks/common 7.7.0 (hexToBytes). See LOCAL_BROADCAST_FAILURE_PATTERNS.
 class DeserializationError extends Error {
   constructor(message: string) {
     super(message);
@@ -48,9 +49,35 @@ describe("parseLocalBroadcastFailure", () => {
     expect(parseLocalBroadcastFailure(new Error("Invalid byte sequence"))?.kind).toBe("malformed_bytes");
   });
 
-  it("keeps the relay's existing patterns", () => {
-    expect(parseLocalBroadcastFailure(new Error("Failed to deserialize transaction"))?.kind).toBe("deserialize_failed");
-    expect(parseLocalBroadcastFailure("malformed payload")?.kind).toBe("malformed_bytes");
+  it("does not match node or API errors that merely mention the same words", () => {
+    // a node 400 or an upstream fetch rethrown in the same try must not be blamed on the local library
+    expect(parseLocalBroadcastFailure(new Error("Failed to deserialize transaction: bad payload"))).toBeNull();
+    expect(parseLocalBroadcastFailure(new Error("Malformed JSON in response"))).toBeNull();
+    expect(parseLocalBroadcastFailure(new Error("Malformed ABI. Contains multiple functions with the same name"))).toBeNull();
+    expect(parseLocalBroadcastFailure(new Error("node said: non-sponsored transaction rejected"))).toBeNull();
+    expect(parseLocalBroadcastFailure(new Error("Could not parse foo as uint"))).toBeNull();
+  });
+
+  it("classifies a DeserializationError with an empty message by its name", () => {
+    expect(parseLocalBroadcastFailure(new DeserializationError(""))).toEqual({
+      kind: "deserialize_failed",
+      reason: "DeserializationError",
+    });
+  });
+
+  it("classifies error-shaped values from another realm or a worker boundary", () => {
+    expect(
+      parseLocalBroadcastFailure({ name: "DeserializationError", message: "Could not parse undefined as AuthType" })?.kind,
+    ).toBe("deserialize_failed");
+    expect(parseLocalBroadcastFailure({ message: "Invalid byte sequence" })?.kind).toBe("malformed_bytes");
+  });
+
+  it("never throws, even on values that cannot be stringified", () => {
+    expect(() => parseLocalBroadcastFailure(Object.create(null))).not.toThrow();
+    expect(parseLocalBroadcastFailure(Object.create(null))).toBeNull();
+    const hostile = { get message(): string { throw new Error("boom"); } };
+    expect(() => parseLocalBroadcastFailure(hostile)).not.toThrow();
+    expect(parseLocalBroadcastFailure(hostile)).toBeNull();
   });
 
   it("returns null for unrelated errors so callers keep their own handling", () => {
