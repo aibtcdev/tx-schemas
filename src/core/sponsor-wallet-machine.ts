@@ -609,6 +609,15 @@ export function reconcile(
       continue;
     }
 
+    // Two-phase invariant: a pending_broadcast entry means a prior broadcast
+    // call hasn't been resolved yet. Never overwrite it with an adopted
+    // orphan — doing so would break resolveBroadcast() (LedgerTransitionError)
+    // and reset the entry's rbfAttempts, evading the RBF attempt cap. Leave
+    // the entry intact; Pass 2 below classifies the txId mismatch as drift
+    // so the caller resolves the pending broadcast and re-decides.
+    const existingEntry = getLedgerEntry(nextLedger, nonce);
+    if (existingEntry?.status === "pending_broadcast") continue;
+
     nextWallet = adoptOrphan(nextWallet, hiroTx, { now });
     nextLedger = {
       ...nextLedger,
@@ -620,7 +629,9 @@ export function reconcile(
           fee: hiroTx.fee_rate,
           status: "broadcast_sent",
           broadcastAt: nowIso,
-          rbfAttempts: 0,
+          // Carry over prior RBF attempts so an adopted retry can't reset
+          // the attempt cap.
+          rbfAttempts: existingEntry?.rbfAttempts ?? 0,
         },
       },
     };
