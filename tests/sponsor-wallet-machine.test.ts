@@ -803,4 +803,46 @@ describe("reconcile", () => {
     const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, { now: NOW });
     expect(result.dropped).toEqual([105]);
   });
+
+  it("REGRESSION: does not overwrite a pending_broadcast entry with an adopted orphan (LedgerTransitionError crash + RBF cap reset)", () => {
+    // beginPendingBroadcast tx A at nonce 105 with 3 RBF attempts already used.
+    let ledger = beginPendingBroadcast(makeLedger(), {
+      nonce: 105,
+      txId: TX_OURS,
+      fee: "5000",
+      broadcastAt: NOW,
+    });
+    ledger = {
+      ...ledger,
+      entries: {
+        ...ledger.entries,
+        "105": { ...ledger.entries["105"]!, rbfAttempts: 3 },
+      },
+    };
+    // Mempool shows a *different* sponsor-owned tx (orphan B, e.g. from an
+    // earlier unrecorded broadcast or a competing RBF) at the same nonce.
+    const mempool: Record<number, HiroSponsorTxView | null> = {
+      105: hiroTx({ tx_id: TX_ORPHAN, fee_rate: "7000" }),
+    };
+    const result = reconcile(makeWallet(), ledger, mempool, SPONSOR, {
+      now: NOW,
+    });
+
+    // The pending_broadcast entry must be preserved untouched — never
+    // silently replaced by the adopted orphan.
+    const entry = result.ledger.entries["105"];
+    expect(entry?.status).toBe("pending_broadcast");
+    expect(entry?.txId).toBe(TX_OURS);
+    expect(entry?.rbfAttempts).toBe(3);
+
+    // The orphan must NOT be adopted while the prior broadcast is unresolved.
+    expect(result.adopted).toEqual([]);
+
+    // The txId mismatch is surfaced as drift so the caller re-decides after
+    // resolving the pending broadcast.
+    expect(result.dropped).toEqual([105]);
+
+    // resolveBroadcast on the preserved pending entry must not crash.
+    expect(() => resolveBroadcast(result.ledger, 105, "sent")).not.toThrow();
+  });
 });
